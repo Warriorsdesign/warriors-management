@@ -6,27 +6,25 @@ import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import { 
-  mockFormations, Formation, 
-  mockClasses, ClassGroup, 
+import {
+  mockFormations, Formation,
+  mockClasses, ClassGroup,
   mockCenters, Center,
-  mockStudents, Student 
+  mockStudents, Student
 } from "@/lib/data/mockData";
-import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function FormationsPage() {
   const [formations, setFormations] = useState<Formation[]>([]);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFormation, setEditingFormation] = useState<Formation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null);
-  const showToast = useUIStore(state => state.showToast);
-  
+
   // For inline level editing
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
   const [editingLevelName, setEditingLevelName] = useState("");
@@ -99,24 +97,24 @@ export default function FormationsPage() {
     e.preventDefault();
     let updated;
     const levelCount = formData.hasLevels && formData.levelCount ? parseInt(formData.levelCount) : 0;
-    
+
     if (editingFormation) {
       updated = formations.map(f => {
         if (f.id === editingFormation.id) {
           let newLevels = f.levels || [];
           if (formData.hasLevels && levelCount > 0) {
-             const updatedLevels = [];
-             for (let i = 1; i <= levelCount; i++) {
-               const existing = newLevels.find(l => l.id === `lvl_${i}`);
-               if (existing) {
-                 updatedLevels.push(existing);
-               } else {
-                 updatedLevels.push({ id: `lvl_${i}`, name: `Niveau ${i}` });
-               }
-             }
-             newLevels = updatedLevels;
+            const updatedLevels = [];
+            for (let i = 1; i <= levelCount; i++) {
+              const existing = newLevels.find(l => l.id === `lvl_${i}`);
+              if (existing) {
+                updatedLevels.push(existing);
+              } else {
+                updatedLevels.push({ id: `lvl_${i}`, name: `Niveau ${i}` });
+              }
+            }
+            newLevels = updatedLevels;
           } else {
-             newLevels = [];
+            newLevels = [];
           }
 
           return {
@@ -133,13 +131,13 @@ export default function FormationsPage() {
         return f;
       });
     } else {
-      const initialLevels: {id: string, name: string}[] = [];
+      const initialLevels: { id: string, name: string }[] = [];
       if (formData.hasLevels && levelCount > 0) {
         for (let i = 1; i <= levelCount; i++) {
           initialLevels.push({ id: `lvl_${i}`, name: `Niveau ${i}` });
         }
       }
-      
+
       const newFormation: Formation = {
         id: `form_${Date.now()}`,
         name: formData.name,
@@ -155,21 +153,13 @@ export default function FormationsPage() {
     setFormations(updated);
     localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
     setIsModalOpen(false);
-    showToast(editingFormation ? "Formation modifiée avec succès." : "Formation ajoutée avec succès.");
-  };
-
-  const handleDelete = (id: string) => {
-    const updated = formations.filter(f => f.id !== id);
-    setFormations(updated);
-    localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
-    showToast("Formation supprimée.");
   };
 
   const saveLevelName = (formationId: string, levelId: string) => {
     if (!editingLevelName.trim()) return;
     const updated = formations.map(f => {
       if (f.id === formationId) {
-        const updatedLevels = (f.levels || []).map(l => 
+        const updatedLevels = (f.levels || []).map(l =>
           l.id === levelId ? { ...l, name: editingLevelName } : l
         );
         return { ...f, levels: updatedLevels };
@@ -179,10 +169,9 @@ export default function FormationsPage() {
     setFormations(updated);
     localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
     setEditingLevelId(null);
-    showToast("Nom du niveau mis à jour.");
   };
 
-  const filteredFormations = formations.filter(f => 
+  const filteredFormations = formations.filter(f =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -200,7 +189,7 @@ export default function FormationsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Formations</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez le catalogue des formations proposées et leurs niveaux.</p>
         </div>
-        <button 
+        <button
           onClick={openAddModal}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
@@ -209,24 +198,24 @@ export default function FormationsPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Rechercher une formation..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <div className="relative w-full md:w-1/2">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher une formation..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -255,7 +244,7 @@ export default function FormationsPage() {
               <tbody className="divide-y divide-border">
                 {filteredFormations.map((f) => (
                   <React.Fragment key={f.id}>
-                    <tr 
+                    <tr
                       onClick={() => setSelectedFormationId(selectedFormationId === f.id ? null : f.id)}
                       className={`hover:bg-secondary/30 transition-colors cursor-pointer ${selectedFormationId === f.id ? 'bg-secondary/20' : ''}`}
                     >
@@ -272,7 +261,7 @@ export default function FormationsPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditModal(f);
@@ -283,7 +272,7 @@ export default function FormationsPage() {
                         </button>
                       </td>
                     </tr>
-                    
+
                     {/* Inline Expandable Levels Panel */}
                     {selectedFormationId === f.id && f.hasLevels && f.levels && f.levels.length > 0 && (
                       <tr className="bg-secondary/5 border-b border-border">
@@ -365,20 +354,20 @@ export default function FormationsPage() {
         )}
       </div>
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingFormation ? "Éditer la formation" : "Créer une formation"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Nom de la formation</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.name}
-              onChange={e => setFormData({...formData, name: e.target.value})}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
               required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               placeholder="Ex: Anglais professionnel"
             />
           </div>
@@ -386,34 +375,34 @@ export default function FormationsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Durée</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={formData.duration}
-                onChange={e => setFormData({...formData, duration: e.target.value})}
+                onChange={e => setFormData({ ...formData, duration: e.target.value })}
                 required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
                 placeholder="Ex: 9 mois"
               />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Frais (FCFA)</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 value={formData.totalCost}
-                onChange={e => setFormData({...formData, totalCost: e.target.value})}
+                onChange={e => setFormData({ ...formData, totalCost: e.target.value })}
                 required
                 min="0"
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Statut</label>
             <Select
               value={formData.status}
-              onChange={(val) => setFormData({...formData, status: val})}
+              onChange={(val) => setFormData({ ...formData, status: val })}
               options={[
                 { value: "actif", label: "Actif" },
                 { value: "inactif", label: "Inactif" }
@@ -422,10 +411,10 @@ export default function FormationsPage() {
           </div>
 
           <div className="flex items-center gap-2 pt-2">
-            <input 
-              type="checkbox" 
+            <input
+              type="checkbox"
               checked={formData.hasLevels}
-              onChange={e => setFormData({...formData, hasLevels: e.target.checked})}
+              onChange={e => setFormData({ ...formData, hasLevels: e.target.checked })}
               id="has_levels"
               className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
             />
@@ -435,27 +424,27 @@ export default function FormationsPage() {
           {formData.hasLevels && (
             <div className="space-y-2 pt-2 animate-in fade-in">
               <label className="text-sm font-medium text-muted-foreground">Nombre de niveaux</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 value={formData.levelCount}
-                onChange={e => setFormData({...formData, levelCount: e.target.value})}
+                onChange={e => setFormData({ ...formData, levelCount: e.target.value })}
                 min="1"
                 required={formData.hasLevels}
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               />
             </div>
           )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
             >
               {editingFormation ? "Enregistrer" : "Créer"}

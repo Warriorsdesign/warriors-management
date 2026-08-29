@@ -33,7 +33,7 @@ export default function CentersPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Centres</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les centres de formation.</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
@@ -78,8 +78,8 @@ export default function CentersPage() {
         )}
       </div>
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Ajouter un centre"
       >

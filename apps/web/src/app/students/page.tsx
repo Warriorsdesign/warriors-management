@@ -11,12 +11,10 @@ import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Select } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function StudentsPage() {
   const router = useRouter();
-  const showToast = useUIStore(state => state.showToast);
-  
+
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [classes, setClasses] = useState<ClassGroup[]>(mockClasses);
   const [formations, setFormations] = useState<Formation[]>(mockFormations);
@@ -42,11 +40,11 @@ export default function StudentsPage() {
       setIsLoading(false);
     }
   }, []);
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormations, setSelectedFormations] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
@@ -111,9 +109,9 @@ export default function StudentsPage() {
     return students.filter(student => {
       const classGroup = classes.find(c => c.id === student.classId);
       const formation = formations.find(f => f.id === classGroup?.formationId);
-      
+
       const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         student.firstName.toLowerCase().includes(searchLower) ||
         student.lastName.toLowerCase().includes(searchLower) ||
         student.matricule.toLowerCase().includes(searchLower);
@@ -206,13 +204,13 @@ export default function StudentsPage() {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       let updatedStudents;
       if (editingStudent) {
-        updatedStudents = students.map(s => 
-          s.id === editingStudent.id ? { 
-            ...s, 
+        updatedStudents = students.map(s =>
+          s.id === editingStudent.id ? {
+            ...s,
             firstName: formData.firstName,
             lastName: formData.lastName,
             contact: formData.contact,
@@ -262,10 +260,10 @@ export default function StudentsPage() {
         if (totalCost > 0) {
           const installmentsCount = parseInt(formData.installmentsCount) || 1;
           const installmentAmount = Math.round(remainingAmount / installmentsCount);
-          
+
           const installments = [];
           const currentDate = new Date(formData.enrollmentDate || new Date());
-          
+
           for (let i = 0; i < installmentsCount; i++) {
             if (formData.installmentInterval.includes('semaine')) {
               const weeks = parseInt(formData.installmentInterval.split('_')[0]);
@@ -274,9 +272,9 @@ export default function StudentsPage() {
               const months = parseInt(formData.installmentInterval.split('_')[0]);
               currentDate.setMonth(currentDate.getMonth() + months);
             }
-            
+
             const isLate = new Date(currentDate) < new Date();
-            
+
             installments.push({
               amount: installmentAmount,
               dueDate: currentDate.toISOString().split('T')[0],
@@ -285,7 +283,7 @@ export default function StudentsPage() {
           }
 
           const hasLateInstallment = installments.some(i => i.status === "en_retard");
-          
+
           const newSchedule: PaymentSchedule = {
             id: `sch_${Date.now()}`,
             studentId: newStudent.id,
@@ -304,15 +302,14 @@ export default function StudentsPage() {
 
         updatedStudents = [newStudent, ...students];
       }
-      
+
       setStudents(updatedStudents);
       localStorage.setItem('warriors_mock_students', JSON.stringify(updatedStudents));
       setIsModalOpen(false);
       resetForm();
-      showToast(editingStudent ? "Étudiant modifié avec succès." : "Étudiant ajouté avec succès.");
     } catch (error) {
       console.error("Error saving student", error);
-      showToast("Une erreur est survenue lors de la sauvegarde.", 'error');
+      alert("Une erreur est survenue lors de la sauvegarde.");
     } finally {
       setIsSubmitting(false);
     }
@@ -339,13 +336,13 @@ export default function StudentsPage() {
           <h1 className="text-xl font-bold tracking-tight text-foreground">Étudiants</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les inscriptions et les dossiers des élèves</p>
         </div>
-        
+
         {isLoading && (
           <div className="flex-1 text-center text-sm text-muted-foreground animate-pulse">
             Chargement des données...
           </div>
         )}
-        <button 
+        <button
           onClick={() => {
             setEditingStudent(null);
             setFormData({
@@ -374,41 +371,41 @@ export default function StudentsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-6">
-        <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Rechercher (nom, mat., tel)..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
-            <MultiSelect
-              label="Formations"
-              options={formationOptions}
-              selectedValues={selectedFormations}
-              onChange={setSelectedFormations}
-              className="w-full sm:w-48"
-            />
-            <MultiSelect
-              label="Statuts"
-              options={statusOptions}
-              selectedValues={selectedStatuses}
-              onChange={setSelectedStatuses}
-              className="w-full sm:w-48"
-            />
-          </div>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
+        <div className="relative w-full md:w-1/2">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher (nom, mat., tel)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
+          <MultiSelect
+            label="Formations"
+            options={formationOptions}
+            selectedValues={selectedFormations}
+            onChange={setSelectedFormations}
+            className="w-full sm:w-48"
+          />
+          <MultiSelect
+            label="Statuts"
+            options={statusOptions}
+            selectedValues={selectedStatuses}
+            onChange={setSelectedStatuses}
+            className="w-full sm:w-48"
+          />
+        </div>
       </div>
 
       <Card className="shadow-none rounded-xl border-border overflow-hidden">
@@ -437,12 +434,12 @@ export default function StudentsPage() {
                 currentStudents.map((student, idx) => {
                   const classGroup = classes.find(c => c.id === student.classId);
                   const formation = formations.find(f => f.id === classGroup?.formationId);
-                  
+
                   // Récupérer les échéanciers en temps réel pour l'étudiant
                   const storedSchedulesStr = localStorage.getItem('warriors_mock_payment_schedules');
                   const currentSchedules = storedSchedulesStr ? JSON.parse(storedSchedulesStr) : mockPaymentSchedules;
                   const paymentSchedule = currentSchedules.find((p: PaymentSchedule) => p.studentId === student.id);
-                  
+
                   return (
                     <tr key={student.id} className="hover:bg-secondary/30 transition-colors group">
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -475,7 +472,7 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="relative inline-flex items-center action-dropdown-container">
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -487,13 +484,13 @@ export default function StudentsPage() {
                           </button>
                           {openDropdownId === student.id && (
                             <div className={`absolute right-0 w-32 bg-background border border-border rounded-md shadow-lg py-1 z-50 ${idx >= currentStudents.length - 2 && currentStudents.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
-                              <Link 
+                              <Link
                                 href={`/students/${student.id}`}
                                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
                               >
                                 <Eye className="w-4 h-4" /> Détails
                               </Link>
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
@@ -504,7 +501,7 @@ export default function StudentsPage() {
                               >
                                 <Edit className="w-4 h-4" /> Modifier
                               </button>
-                              <button 
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setStudentToDelete(student);
@@ -525,7 +522,7 @@ export default function StudentsPage() {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination Footer */}
         <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-secondary/20">
           <div className="text-xs text-muted-foreground">
@@ -533,7 +530,7 @@ export default function StudentsPage() {
           </div>
           <div className="flex items-center gap-1">
             <nav className="flex items-center gap-1">
-              <button 
+              <button
                 onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
                 className="px-2 py-1 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-50 disabled:pointer-events-none transition-colors"
@@ -544,16 +541,15 @@ export default function StudentsPage() {
                 <button
                   key={page}
                   onClick={() => handlePageChange(page)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${
-                    currentPage === page 
-                      ? 'bg-primary text-primary-foreground' 
+                  className={`w-7 h-7 flex items-center justify-center rounded-md text-xs font-medium transition-colors ${currentPage === page
+                      ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-                  }`}
+                    }`}
                 >
                   {page}
                 </button>
               ))}
-              <button 
+              <button
                 onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages || totalPages === 0}
                 className="px-2 py-1 text-xs font-medium rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary disabled:opacity-50 disabled:pointer-events-none transition-colors"
@@ -579,31 +575,31 @@ export default function StudentsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Prénom</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.firstName}
-                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: Jean" 
-                  required 
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Jean"
+                  required
                 />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Nom</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={formData.lastName}
-                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: Dupont" 
-                  required 
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: Dupont"
+                  required
                 />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Sexe</label>
                 <Select
                   value={formData.gender}
-                  onChange={(val) => setFormData({...formData, gender: val as "Male" | "Female"})}
+                  onChange={(val) => setFormData({ ...formData, gender: val as "Male" | "Female" })}
                   options={[
                     { label: 'Masculin', value: 'Male' },
                     { label: 'Féminin', value: 'Female' },
@@ -612,12 +608,12 @@ export default function StudentsPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Téléphone</label>
-                <input 
-                  type="tel" 
+                <input
+                  type="tel"
                   value={formData.contact}
-                  onChange={(e) => setFormData({...formData, contact: e.target.value})}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                  placeholder="Ex: +237..." 
+                  onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Ex: +237..."
                 />
               </div>
             </div>
@@ -633,7 +629,7 @@ export default function StudentsPage() {
                 <label className="text-xs font-medium text-muted-foreground">Formation</label>
                 <Select
                   value={formData.formationId}
-                  onChange={(val) => setFormData({...formData, formationId: val, classId: ''})}
+                  onChange={(val) => setFormData({ ...formData, formationId: val, classId: '' })}
                   placeholder="Sélectionner une formation"
                   options={formations.map(f => ({ label: f.name, value: f.id }))}
                 />
@@ -642,7 +638,7 @@ export default function StudentsPage() {
                 <label className="text-xs font-medium text-muted-foreground">Classe</label>
                 <Select
                   value={formData.classId}
-                  onChange={(val) => setFormData({...formData, classId: val})}
+                  onChange={(val) => setFormData({ ...formData, classId: val })}
                   placeholder="Sélectionner une classe"
                   disabled={!formData.formationId}
                   options={classes
@@ -662,7 +658,7 @@ export default function StudentsPage() {
                 <label className="text-xs font-medium text-muted-foreground">Statut initial</label>
                 <Select
                   value={formData.currentStatus}
-                  onChange={(val) => setFormData({...formData, currentStatus: val as StudentStatus})}
+                  onChange={(val) => setFormData({ ...formData, currentStatus: val as StudentStatus })}
                   options={[
                     { label: 'Nouvel inscrit', value: 'nouvel_inscrit' },
                     { label: 'Réinscrit', value: 'reinscrit' },
@@ -670,52 +666,52 @@ export default function StudentsPage() {
                   ]}
                 />
               </div>
-              
+
               {selectedFormationForForm?.hasLevels && selectedFormationForForm.levels && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Niveau initial</label>
                   <Select
                     value={formData.currentLevel}
-                    onChange={(val) => setFormData({...formData, currentLevel: val})}
+                    onChange={(val) => setFormData({ ...formData, currentLevel: val })}
                     placeholder="Sélectionner un niveau"
                     options={selectedFormationForForm.levels.map((lvl: any) => ({ label: lvl.name, value: lvl.name }))}
                   />
                 </div>
               )}
-              
+
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Date d'inscription</label>
-                <DatePicker 
+                <DatePicker
                   disablePastDates={true}
                   value={formData.enrollmentDate ? new Date(formData.enrollmentDate) : undefined}
                   onChange={(d) => {
                     if (d) {
                       const localDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-                      setFormData({...formData, enrollmentDate: localDate});
+                      setFormData({ ...formData, enrollmentDate: localDate });
                     } else {
-                      setFormData({...formData, enrollmentDate: ''});
+                      setFormData({ ...formData, enrollmentDate: '' });
                     }
                   }}
                 />
               </div>
-              
+
               {!editingStudent && formData.classId && (
                 <div className="sm:col-span-2 pt-4 border-t border-border mt-2 space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-foreground">Configuration du paiement</span>
                     <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">Coût total : {formatCurrency(totalCost)}</span>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Frais d'inscription (1er paiement)</label>
                       <div className="relative">
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={formData.registrationFee}
-                          onChange={(e) => setFormData({...formData, registrationFee: e.target.value})}
-                          className="w-full bg-background border border-border rounded-md pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                          placeholder="Montant payé aujourd'hui" 
+                          onChange={(e) => setFormData({ ...formData, registrationFee: e.target.value })}
+                          className="w-full bg-background border border-border rounded-md pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Montant payé aujourd'hui"
                           min="0"
                           max={totalCost}
                         />
@@ -729,7 +725,7 @@ export default function StudentsPage() {
                       <label className="text-xs font-medium text-muted-foreground">Mode de paiement</label>
                       <Select
                         value={formData.paymentMethod}
-                        onChange={(val) => setFormData({...formData, paymentMethod: val as Payment["method"]})}
+                        onChange={(val) => setFormData({ ...formData, paymentMethod: val as Payment["method"] })}
                         options={[
                           { label: 'Espèces', value: 'Espèces' },
                           { label: 'Mobile Money', value: 'Mobile Money' },
@@ -738,24 +734,24 @@ export default function StudentsPage() {
                         ]}
                       />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Nombre d'échéances</label>
-                      <input 
-                        type="number" 
+                      <input
+                        type="number"
                         value={formData.installmentsCount}
-                        onChange={(e) => setFormData({...formData, installmentsCount: e.target.value})}
-                        className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
+                        onChange={(e) => setFormData({ ...formData, installmentsCount: e.target.value })}
+                        className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                         min="1"
                         max="12"
                       />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Intervalle</label>
                       <Select
                         value={formData.installmentInterval}
-                        onChange={(val) => setFormData({...formData, installmentInterval: val})}
+                        onChange={(val) => setFormData({ ...formData, installmentInterval: val })}
                         options={[
                           { label: '1 semaine', value: '1_semaine' },
                           { label: '2 semaines', value: '2_semaines' },
@@ -767,7 +763,7 @@ export default function StudentsPage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="bg-secondary/50 rounded-lg p-3 border border-border flex items-center justify-between mt-2">
                     <div className="flex flex-col">
                       <span className="text-xs text-muted-foreground font-medium">Reste à payer</span>
@@ -788,14 +784,14 @@ export default function StudentsPage() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 rounded-md text-sm font-medium border border-border hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
-            <button 
+            <button
               type="submit"
               className="px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
@@ -818,10 +814,10 @@ export default function StudentsPage() {
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               Vous êtes sur le point de supprimer <span className="font-semibold text-foreground">{studentToDelete?.firstName} {studentToDelete?.lastName}</span>.
-              <br/>Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
             </p>
           </div>
-          
+
           <div className="flex justify-center gap-3 pt-4">
             <button
               onClick={() => setStudentToDelete(null)}
@@ -837,10 +833,9 @@ export default function StudentsPage() {
                     setStudents(updated);
                     localStorage.setItem('warriors_mock_students', JSON.stringify(updated));
                     setStudentToDelete(null);
-                    showToast("Étudiant supprimé.");
                   } catch (error) {
                     console.error("Failed to delete student", error);
-                    showToast("Une erreur est survenue lors de la suppression.", 'error');
+                    alert("Une erreur est survenue lors de la suppression.");
                   }
                 }
               }}

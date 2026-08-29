@@ -6,7 +6,6 @@ import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { mockExpenses, Expense } from "@/lib/data/mockData";
-import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -16,8 +15,7 @@ export default function ExpensesPage() {
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const showToast = useUIStore(state => state.showToast);
-  
+
   const [selectedCategory, setSelectedCategory] = useState<string>("Toutes");
 
   const [formData, setFormData] = useState({
@@ -97,7 +95,6 @@ export default function ExpensesPage() {
     setExpenses(updated);
     localStorage.setItem('warriors_mock_expenses', JSON.stringify(updated));
     setIsModalOpen(false);
-    showToast(editingExpense ? "Dépense modifiée avec succès." : "Dépense ajoutée avec succès.");
   };
 
   const handleDelete = () => {
@@ -106,7 +103,6 @@ export default function ExpensesPage() {
       setExpenses(updated);
       localStorage.setItem('warriors_mock_expenses', JSON.stringify(updated));
       setExpenseToDelete(null);
-      showToast("Dépense supprimée avec succès.");
     }
   };
 
@@ -131,7 +127,7 @@ export default function ExpensesPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Dépenses</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les sorties d'argent.</p>
         </div>
-        <button 
+        <button
           onClick={openAddModal}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
@@ -140,33 +136,31 @@ export default function ExpensesPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Rechercher une dépense..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher une dépense..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
-          <div className="w-full sm:w-56">
-            <Select 
-              options={categories.map(c => ({ label: c === "Toutes" ? "Toutes les catégories" : c, value: c }))}
-              value={selectedCategory}
-              onChange={(val) => setSelectedCategory(val)}
-            />
-          </div>
+        <div className="w-full sm:w-56">
+          <Select
+            options={categories.map(c => ({ label: c === "Toutes" ? "Toutes les catégories" : c, value: c }))}
+            value={selectedCategory}
+            onChange={(val) => setSelectedCategory(val)}
+          />
         </div>
       </div>
 
@@ -200,7 +194,7 @@ export default function ExpensesPage() {
                     <td className="px-6 py-4 text-muted-foreground">{e.recordedBy || '-'}</td>
                     <td className="px-6 py-4 text-right font-medium text-rose-600">-{formatCurrency(e.amount)}</td>
                     <td className="px-6 py-4 text-right relative action-dropdown-container">
-                      <button 
+                      <button
                         onClick={(ev) => {
                           ev.stopPropagation();
                           setOpenDropdownId(openDropdownId === e.id ? null : e.id);
@@ -209,7 +203,7 @@ export default function ExpensesPage() {
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
-                      
+
                       {openDropdownId === e.id && (
                         <div className="absolute right-6 top-10 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
                           <button
@@ -241,68 +235,68 @@ export default function ExpensesPage() {
         )}
       </div>
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingExpense ? "Éditer la dépense" : "Enregistrer une dépense"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Motif</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.title}
-              onChange={e => setFormData({...formData, title: e.target.value})}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
               required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               placeholder="Ex: Achat de matériel"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Montant (FCFA)</label>
-            <input 
-              type="number" 
+            <input
+              type="number"
               value={formData.amount}
-              onChange={e => setFormData({...formData, amount: e.target.value})}
+              onChange={e => setFormData({ ...formData, amount: e.target.value })}
               required
               min="0"
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Catégorie</label>
-              <Select 
+              <Select
                 options={categories.filter(c => c !== "Toutes").map(c => ({ label: c, value: c }))}
                 value={formData.category}
-                onChange={(val) => setFormData({...formData, category: val as Expense["category"]})}
+                onChange={(val) => setFormData({ ...formData, category: val as Expense["category"] })}
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={formData.date}
-                onChange={e => setFormData({...formData, date: e.target.value})}
+                onChange={e => setFormData({ ...formData, date: e.target.value })}
                 required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
             >
               {editingExpense ? "Enregistrer" : "Valider la dépense"}
@@ -324,10 +318,10 @@ export default function ExpensesPage() {
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               Vous êtes sur le point de supprimer la dépense "<span className="font-semibold text-foreground">{expenseToDelete?.title}</span>".
-              <br/>Cette action est <span className="text-destructive font-medium">définitive</span>.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span>.
             </p>
           </div>
-          
+
           <div className="flex justify-center gap-3 pt-4">
             <button
               onClick={() => setExpenseToDelete(null)}

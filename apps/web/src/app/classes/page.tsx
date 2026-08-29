@@ -5,13 +5,11 @@ import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { mockClasses, mockFormations, mockCenters, ClassGroup, Formation, Center, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
-import { useUIStore } from "@/lib/store/useUIStore";
+import { mockClasses, mockFormations, ClassGroup, Formation, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [formations, setFormations] = useState<Formation[]>([]);
-  const [centers, setCenters] = useState<Center[]>([]);
   const [studentsCountMap, setStudentsCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,10 +17,6 @@ export default function ClassesPage() {
   const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-
-  const showToast = useUIStore(state => state.showToast);
-  const [selectedFormation, setSelectedFormation] = useState<string>("Toutes");
-  const [selectedCenter, setSelectedCenter] = useState<string>("Tous");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -37,21 +31,16 @@ export default function ClassesPage() {
       const storedFormations = localStorage.getItem('warriors_mock_formations');
       const loadedFormations = storedFormations ? JSON.parse(storedFormations) : mockFormations;
       setFormations(loadedFormations);
-      
+
       // Load classes
       const storedClasses = localStorage.getItem('warriors_mock_classes');
       const loadedClasses = storedClasses ? JSON.parse(storedClasses) : mockClasses;
       setClasses(loadedClasses);
 
-      // Load centers
-      const storedCenters = localStorage.getItem('warriors_mock_centers');
-      const loadedCenters = storedCenters ? JSON.parse(storedCenters) : mockCenters;
-      setCenters(loadedCenters);
-
       // Load students to compute capacity properly
       const storedStudents = localStorage.getItem('warriors_mock_students');
       const loadedStudents = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-      
+
       const counts: Record<string, number> = {};
       loadedClasses.forEach((c: ClassGroup) => counts[c.id] = 0);
       loadedStudents.forEach((s: any) => {
@@ -122,7 +111,6 @@ export default function ClassesPage() {
     setClasses(updated);
     localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
     setIsModalOpen(false);
-    showToast(editingClass ? "Classe modifiée avec succès." : "Classe ajoutée avec succès.");
   };
 
   const handleDelete = () => {
@@ -131,7 +119,6 @@ export default function ClassesPage() {
       setClasses(updated);
       localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
       setClassToDelete(null);
-      showToast("Classe supprimée.");
     }
   };
 
@@ -142,13 +129,9 @@ export default function ClassesPage() {
 
   const formationOptions = formations.map(f => ({ label: f.name, value: f.id }));
 
-  const filteredClasses = classes.filter(c => {
-    let match = true;
-    if (selectedFormation !== "Toutes" && c.formationId !== selectedFormation) match = false;
-    if (selectedCenter !== "Tous" && c.centerId !== selectedCenter) match = false;
-    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) match = false;
-    return match;
-  });
+  const filteredClasses = classes.filter(c =>
+    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 pb-10">
@@ -157,7 +140,7 @@ export default function ClassesPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Classes</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les cohortes et classes.</p>
         </div>
-        <button 
+        <button
           onClick={openAddModal}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
@@ -166,40 +149,24 @@ export default function ClassesPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Rechercher une classe..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
-          <div className="w-full sm:w-48">
-            <Select 
-              options={[{label: "Toutes les formations", value: "Toutes"}, ...formations.map(f => ({ label: f.name, value: f.id }))]}
-              value={selectedFormation}
-              onChange={(val) => setSelectedFormation(val)}
-            />
-          </div>
-          <div className="w-full sm:w-48">
-            <Select 
-              options={[{label: "Tous les centres", value: "Tous"}, ...centers.map(c => ({ label: c.name, value: c.id }))]}
-              value={selectedCenter}
-              onChange={(val) => setSelectedCenter(val)}
-            />
-          </div>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <div className="relative w-full md:w-1/2">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher une classe..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -227,16 +194,16 @@ export default function ClassesPage() {
                 {filteredClasses.map((c) => {
                   const enrolled = studentsCountMap[c.id] || 0;
                   const computedStatus = getComputedClassStatus(c, enrolled);
-                  
+
                   return (
                     <tr key={c.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-6 py-4 font-medium text-foreground">{c.name}</td>
                       <td className="px-6 py-4 text-muted-foreground">{getFormationName(c.formationId)}</td>
                       <td className="px-6 py-4">
                         {computedStatus === 'ouverte' ? (
-                           <Badge variant="success" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Ouverte</Badge>
+                          <Badge variant="success" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Ouverte</Badge>
                         ) : (
-                           <Badge variant="destructive" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-destructive mr-1.5"></span>Complète</Badge>
+                          <Badge variant="destructive" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-destructive mr-1.5"></span>Complète</Badge>
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -244,7 +211,7 @@ export default function ClassesPage() {
                         <span className="text-muted-foreground"> / {c.capacity}</span>
                       </td>
                       <td className="px-6 py-4 text-right relative action-dropdown-container">
-                        <button 
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenDropdownId(openDropdownId === c.id ? null : c.id);
@@ -253,7 +220,7 @@ export default function ClassesPage() {
                         >
                           <MoreHorizontal className="w-4 h-4" />
                         </button>
-                        
+
                         {openDropdownId === c.id && (
                           <div className="absolute right-6 top-10 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
                             <button
@@ -286,58 +253,58 @@ export default function ClassesPage() {
         )}
       </div>
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingClass ? "Éditer la classe" : "Créer une nouvelle classe"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Nom de la classe</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.name}
-              onChange={e => setFormData({...formData, name: e.target.value})}
+              onChange={e => setFormData({ ...formData, name: e.target.value })}
               required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               placeholder="Ex: Cohorte 2026 - A"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Formation</label>
-            <Select 
+            <Select
               options={formationOptions}
               value={formData.formationId}
-              onChange={(val) => setFormData({...formData, formationId: val})}
+              onChange={(val) => setFormData({ ...formData, formationId: val })}
               placeholder="Sélectionner une formation"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Capacité maximale</label>
-            <input 
-              type="number" 
+            <input
+              type="number"
               value={formData.capacity}
-              onChange={e => setFormData({...formData, capacity: e.target.value})}
+              onChange={e => setFormData({ ...formData, capacity: e.target.value })}
               required
               min="1"
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
             />
           </div>
-          
+
 
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
             >
               {editingClass ? "Enregistrer" : "Créer la classe"}
@@ -359,10 +326,10 @@ export default function ClassesPage() {
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               Vous êtes sur le point de supprimer <span className="font-semibold text-foreground">{classToDelete?.name}</span>.
-              <br/>Cette action est <span className="text-destructive font-medium">définitive</span>.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span>.
             </p>
           </div>
-          
+
           <div className="flex justify-center gap-3 pt-4">
             <button
               onClick={() => setClassToDelete(null)}

@@ -6,7 +6,6 @@ import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { mockPayments, mockStudents, Payment, Student } from "@/lib/data/mockData";
-import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -17,9 +16,6 @@ export default function PaymentsPage() {
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  const showToast = useUIStore(state => state.showToast);
-  const [selectedStatus, setSelectedStatus] = useState<string>("Tous");
 
   const [formData, setFormData] = useState({
     studentId: "",
@@ -40,7 +36,7 @@ export default function PaymentsPage() {
       const storedStudents = localStorage.getItem('warriors_mock_students');
       const loadedStudents = storedStudents ? JSON.parse(storedStudents) : mockStudents;
       setStudents(loadedStudents);
-      
+
     } catch (e) {
       console.error("Failed to load local data", e);
     } finally {
@@ -106,7 +102,6 @@ export default function PaymentsPage() {
     setPayments(updated);
     localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
     setIsModalOpen(false);
-    showToast(editingPayment ? "Paiement modifié avec succès." : "Paiement ajouté avec succès.");
   };
 
   const handleDelete = () => {
@@ -115,7 +110,6 @@ export default function PaymentsPage() {
       setPayments(updated);
       localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
       setPaymentToDelete(null);
-      showToast("Paiement supprimé.");
     }
   };
 
@@ -124,9 +118,9 @@ export default function PaymentsPage() {
     return s ? `${s.firstName} ${s.lastName}` : 'Inconnu';
   };
 
-  const studentOptions = students.map(s => ({ 
-    label: `${s.firstName} ${s.lastName} (${s.matricule})`, 
-    value: s.id 
+  const studentOptions = students.map(s => ({
+    label: `${s.firstName} ${s.lastName} (${s.matricule})`,
+    value: s.id
   }));
 
   const methodOptions = [
@@ -138,15 +132,10 @@ export default function PaymentsPage() {
   ];
 
   const filteredPayments = payments.filter(p => {
-    let match = true;
     const studentName = getStudentName(p.studentId).toLowerCase();
     const ref = (p.reference || "").toLowerCase();
     const query = searchQuery.toLowerCase();
-    
-    if (searchQuery && !(studentName.includes(query) || ref.includes(query))) match = false;
-    if (selectedStatus !== "Tous" && p.status !== selectedStatus) match = false;
-    
-    return match;
+    return studentName.includes(query) || ref.includes(query);
   });
 
   return (
@@ -156,7 +145,7 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Paiements</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les encaissements et reçus.</p>
         </div>
-        <button 
+        <button
           onClick={openAddModal}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
         >
@@ -165,38 +154,24 @@ export default function PaymentsPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Rechercher un paiement (étudiant ou réf)..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
-          <div className="w-full sm:w-48">
-            <Select 
-              options={[
-                {label: "Tous les statuts", value: "Tous"},
-                {label: "Complété", value: "complété"},
-                {label: "En attente", value: "en_attente"},
-                {label: "Échoué", value: "échoué"}
-              ]}
-              value={selectedStatus}
-              onChange={(val) => setSelectedStatus(val)}
-            />
-          </div>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <div className="relative w-full md:w-1/2">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Rechercher un paiement (étudiant ou réf)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -232,7 +207,7 @@ export default function PaymentsPage() {
                     <td className="px-6 py-4 text-muted-foreground">{p.recordedBy || '-'}</td>
                     <td className="px-6 py-4 text-right font-medium text-emerald-600">+{formatCurrency(p.amount)}</td>
                     <td className="px-6 py-4 text-right relative action-dropdown-container">
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenDropdownId(openDropdownId === p.id ? null : p.id);
@@ -241,7 +216,7 @@ export default function PaymentsPage() {
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
-                      
+
                       {openDropdownId === p.id && (
                         <div className="absolute right-6 top-10 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
                           <button
@@ -273,78 +248,78 @@ export default function PaymentsPage() {
         )}
       </div>
 
-      <Modal 
-        isOpen={isModalOpen} 
+      <Modal
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingPayment ? "Éditer le paiement" : "Enregistrer un paiement"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
-          
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Étudiant</label>
-            <Select 
+            <Select
               options={studentOptions}
               value={formData.studentId}
-              onChange={(val) => setFormData({...formData, studentId: val})}
+              onChange={(val) => setFormData({ ...formData, studentId: val })}
               placeholder="Sélectionner un étudiant"
             />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Montant (FCFA)</label>
-            <input 
-              type="number" 
+            <input
+              type="number"
               value={formData.amount}
-              onChange={e => setFormData({...formData, amount: e.target.value})}
+              onChange={e => setFormData({ ...formData, amount: e.target.value })}
               required
               min="0"
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Méthode</label>
-              <Select 
+              <Select
                 options={methodOptions}
                 value={formData.method}
-                onChange={(val) => setFormData({...formData, method: val as any})}
+                onChange={(val) => setFormData({ ...formData, method: val as any })}
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={formData.date}
-                onChange={e => setFormData({...formData, date: e.target.value})}
+                onChange={e => setFormData({ ...formData, date: e.target.value })}
                 required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               />
             </div>
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-muted-foreground">Référence (optionnel)</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={formData.reference}
-              onChange={e => setFormData({...formData, reference: e.target.value})}
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+              onChange={e => setFormData({ ...formData, reference: e.target.value })}
+              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
               placeholder="Ex: Ref chèque ou transaction mobile"
             />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setIsModalOpen(false)}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
             >
               {editingPayment ? "Enregistrer" : "Valider le paiement"}
@@ -366,10 +341,10 @@ export default function PaymentsPage() {
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               Vous êtes sur le point de supprimer un paiement de <span className="font-semibold text-foreground">{formatCurrency(paymentToDelete?.amount || 0)}</span>.
-              <br/>Cette action est <span className="text-destructive font-medium">définitive</span>.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span>.
             </p>
           </div>
-          
+
           <div className="flex justify-center gap-3 pt-4">
             <button
               onClick={() => setPaymentToDelete(null)}

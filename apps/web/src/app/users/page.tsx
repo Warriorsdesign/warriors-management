@@ -7,7 +7,6 @@ import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizont
 import { mockUsers, User, mockCenters, Center, Role, UserStatus } from '@/lib/data/mockData';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
-import { useUIStore } from "@/lib/store/useUIStore";
 
 const roleColors: Record<Role, string> = {
   "ADMIN": "bg-cyan-50 text-cyan-600",
@@ -19,12 +18,11 @@ const roleColors: Record<Role, string> = {
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
-  
-  const showToast = useUIStore(state => state.showToast);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [centerFilter, setCenterFilter] = useState('all');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -38,7 +36,7 @@ export default function UsersPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-  
+
   const [formData, setFormData] = useState<{
     firstName: string;
     lastName: string;
@@ -113,8 +111,8 @@ export default function UsersPage() {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editingUser) {
-      const updated = users.map(u => u.id === editingUser.id ? { 
-        ...u, 
+      const updated = users.map(u => u.id === editingUser.id ? {
+        ...u,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -139,7 +137,6 @@ export default function UsersPage() {
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
     }
     setIsModalOpen(false);
-    showToast(editingUser ? "Utilisateur modifié avec succès." : "Utilisateur ajouté avec succès.");
   };
 
   const handleDelete = () => {
@@ -149,7 +146,6 @@ export default function UsersPage() {
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
       setIsDeleteModalOpen(false);
       setEditingUser(null);
-      showToast("Utilisateur supprimé.");
     }
   };
 
@@ -167,7 +163,7 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Utilisateurs</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les accès et les rôles de votre équipe.</p>
         </div>
-        <button 
+        <button
           onClick={openAddModal}
           className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
         >
@@ -176,18 +172,18 @@ export default function UsersPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="relative w-full md:w-96">
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative w-full md:w-1/2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input 
-            type="text" 
-            placeholder="Rechercher un utilisateur..." 
+          <input
+            type="text"
+            placeholder="Rechercher un utilisateur..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
           />
           {searchQuery && (
-            <button 
+            <button
               onClick={() => setSearchQuery('')}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
             >
@@ -195,9 +191,8 @@ export default function UsersPage() {
             </button>
           )}
         </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
-          <div className="w-full sm:w-48">
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:ml-auto">
           <Select
             value={roleFilter}
             onChange={setRoleFilter}
@@ -209,17 +204,14 @@ export default function UsersPage() {
               { label: 'Agent', value: 'AGENT' },
             ]}
           />
-          </div>
-          <div className="w-full sm:w-48">
-            <Select
+          <Select
             value={centerFilter}
             onChange={setCenterFilter}
             options={[
               { label: 'Tous les centres', value: 'all' },
               ...centers.map(c => ({ label: c.name, value: c.id }))
             ]}
-            />
-          </div>
+          />
         </div>
       </div>
 
@@ -230,7 +222,7 @@ export default function UsersPage() {
 
             {/* Dropdown Menu */}
             <div className="absolute right-3 top-3 action-dropdown-container">
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setOpenDropdownId(openDropdownId === user.id ? null : user.id);
@@ -239,10 +231,10 @@ export default function UsersPage() {
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
-              
+
               {openDropdownId === user.id && (
                 <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                  <button 
+                  <button
                     onClick={() => {
                       openEditModal(user);
                       setOpenDropdownId(null);
@@ -251,9 +243,9 @@ export default function UsersPage() {
                   >
                     <Edit2 className="w-4 h-4" /> Modifier
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
-                      setEditingUser(user); 
+                      setEditingUser(user);
                       setIsDeleteModalOpen(true);
                       setOpenDropdownId(null);
                     }}
@@ -274,14 +266,14 @@ export default function UsersPage() {
             <h3 className="text-base font-semibold text-foreground px-4 text-center truncate w-full">
               {user.firstName} {user.lastName}
             </h3>
-            
+
             <p className="text-xs text-muted-foreground mt-1 px-4 text-center truncate w-full">
-              {user.role === 'ADMIN' ? 'Administrateur Système' : 
-               user.role === 'GESTIONNAIRE' ? 'Gestionnaire Opérationnel' : 
-               user.role === 'COMPTABLE' ? 'Responsable Financier' : 'Agent Administratif'}
+              {user.role === 'ADMIN' ? 'Administrateur Système' :
+                user.role === 'GESTIONNAIRE' ? 'Gestionnaire Opérationnel' :
+                  user.role === 'COMPTABLE' ? 'Responsable Financier' : 'Agent Administratif'}
             </p>
 
-            <p 
+            <p
               className="text-[11px] text-muted-foreground/80 mt-0.5 px-4 text-center truncate w-full"
               title={user.centerIds && user.centerIds.length > 0 ? user.centerIds.map(cId => centers.find(c => c.id === cId)?.name).filter(Boolean).join(", ") : "Tous les centres"}
             >
@@ -303,12 +295,12 @@ export default function UsersPage() {
 
             {/* Action Buttons */}
             <div className="w-full mt-auto border-t border-border">
-              <a 
+              <a
                 href={`mailto:${user.email}`}
                 className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors"
                 title={user.email}
               >
-                <Mail className="w-4 h-4" /> 
+                <Mail className="w-4 h-4" />
                 <span className="truncate max-w-[200px]">{user.email}</span>
               </a>
             </div>
@@ -332,34 +324,34 @@ export default function UsersPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Prénom</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={formData.firstName}
-                onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                required 
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                required
               />
             </div>
-            
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Nom</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={formData.lastName}
-                onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                required 
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                required
               />
             </div>
-            
+
             <div className="space-y-1.5 sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground">Adresse Email</label>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary" 
-                required 
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                required
               />
             </div>
 
@@ -367,7 +359,7 @@ export default function UsersPage() {
               <label className="text-xs font-medium text-muted-foreground">Rôle</label>
               <Select
                 value={formData.role}
-                onChange={(val: string) => setFormData({...formData, role: val})}
+                onChange={(val: string) => setFormData({ ...formData, role: val })}
                 options={[
                   { label: 'Administrateur', value: 'ADMIN' },
                   { label: 'Gestionnaire', value: 'GESTIONNAIRE' },
@@ -381,21 +373,21 @@ export default function UsersPage() {
               <label className="text-xs font-medium text-muted-foreground">Statut</label>
               <Select
                 value={formData.status}
-                onChange={(val: string) => setFormData({...formData, status: val})}
+                onChange={(val: string) => setFormData({ ...formData, status: val })}
                 options={[
                   { label: 'Actif', value: 'actif' },
                   { label: 'Inactif', value: 'inactif' },
                 ]}
               />
             </div>
-            
+
             <div className="space-y-2 sm:col-span-2 mt-2">
               <label className="text-xs font-medium text-muted-foreground">Centres affectés</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-border rounded-md p-3 max-h-40 overflow-y-auto">
                 {centers.map(center => (
                   <label key={center.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 p-1 rounded-md">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       className="rounded border-border text-primary focus:ring-primary"
                       checked={formData.centerIds.includes(center.id)}
                       onChange={() => handleCenterToggle(center.id)}
@@ -441,10 +433,10 @@ export default function UsersPage() {
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
               Vous êtes sur le point de supprimer l'utilisateur <span className="font-semibold text-foreground">{editingUser?.firstName} {editingUser?.lastName}</span>.
-              <br/>Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
             </p>
           </div>
-          
+
           <div className="flex justify-center gap-3 pt-4">
             <button
               onClick={() => setIsDeleteModalOpen(false)}
