@@ -11,9 +11,20 @@ interface DatePickerProps {
   className?: string;
   locale?: any;
   disablePastDates?: boolean;
+  minDate?: Date;
+  align?: 'left' | 'right';
 }
 
-export function DatePicker({ value, onChange, placeholder = "Sélectionner une date", className, locale = fr, disablePastDates = false }: DatePickerProps) {
+export function DatePicker({ 
+  value, 
+  onChange, 
+  placeholder = "Sélectionner une date", 
+  className, 
+  locale = fr, 
+  disablePastDates = false,
+  minDate,
+  align = 'left'
+}: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(value || new Date());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,21 +107,23 @@ export function DatePicker({ value, onChange, placeholder = "Sélectionner une d
         const isToday = isSameDay(day, new Date());
 
         const isPast = disablePastDates && day < startOfDay(new Date());
+        const isBeforeMinDate = minDate && day < startOfDay(minDate);
+        const isDisabled = !isCurrentMonth || isPast || isBeforeMinDate;
 
         days.push(
           <button
             type="button"
             key={day.toString()}
-            disabled={!isCurrentMonth || isPast}
+            disabled={isDisabled}
             onClick={() => {
               onChange(cloneDay);
               setIsOpen(false);
             }}
             className={cn(
               "text-sm rounded-lg transition-colors flex items-center justify-center w-8 h-8 mx-auto font-medium",
-              (!isCurrentMonth || isPast) ? "text-muted-foreground/30 opacity-40 cursor-not-allowed" : "text-foreground hover:bg-muted",
-              isSelected && isCurrentMonth && !isPast && "border-2 border-muted bg-transparent text-foreground",
-              !isSelected && isToday && isCurrentMonth && !isPast && "text-primary"
+              isDisabled ? "text-muted-foreground/30 opacity-40 cursor-not-allowed" : "text-foreground hover:bg-muted",
+              isSelected && isCurrentMonth && !isDisabled && "border-2 border-muted bg-transparent text-foreground",
+              !isSelected && isToday && isCurrentMonth && !isDisabled && "text-primary"
             )}
           >
             {formattedDate}
@@ -160,7 +173,10 @@ export function DatePicker({ value, onChange, placeholder = "Sélectionner une d
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-[280px] p-4 mt-2 bg-card border border-border rounded-xl shadow-lg left-0 top-full origin-top animate-in fade-in zoom-in-95 duration-200">
+        <div className={cn(
+          "absolute z-50 w-[280px] p-4 mt-2 bg-card border border-border rounded-xl shadow-lg top-full origin-top animate-in fade-in zoom-in-95 duration-200",
+          align === 'right' ? "right-0" : "left-0"
+        )}>
           {renderHeader()}
           {renderDays()}
           {renderCells()}

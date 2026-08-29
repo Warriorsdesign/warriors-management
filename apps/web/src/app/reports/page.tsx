@@ -20,6 +20,7 @@ import {
   Cell
 } from "recharts";
 import { mockFormations, mockClasses, mockStudents, mockPayments, mockExpenses, Formation, Student, Payment, Expense } from "@/lib/data/mockData";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("Vue générale");
@@ -28,6 +29,8 @@ export default function ReportsPage() {
   const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
   const [expensesData, setExpensesData] = useState<Expense[]>([]);
   const [classesData, setClassesData] = useState(mockClasses);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     const savedFormations = localStorage.getItem("warriors_mock_formations");
@@ -60,10 +63,22 @@ export default function ReportsPage() {
   });
 
   let totalActiveStudents = 0;
+  let newStudentsThisMonth = 0;
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
   studentsData.forEach(student => {
     if (student.currentStatus !== 'abandonne' && student.currentStatus !== 'formation_terminee') {
       totalActiveStudents++;
     }
+    
+    if (student.enrollmentDate) {
+      const enrollmentDate = new Date(student.enrollmentDate);
+      if (enrollmentDate.getMonth() === currentMonth && enrollmentDate.getFullYear() === currentYear) {
+        newStudentsThisMonth++;
+      }
+    }
+    
     const formationId = classToFormation[student.classId];
     if (formationId) {
       studentCountByFormation[formationId] = (studentCountByFormation[formationId] || 0) + 1;
@@ -189,6 +204,22 @@ export default function ReportsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Rapports & Analyses</h1>
           <p className="text-sm text-muted-foreground mt-1">Analyse des performances académiques et financières</p>
         </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <DatePicker
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Date de début"
+            className="w-full sm:w-44"
+          />
+          <DatePicker
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="Date de fin"
+            className="w-full sm:w-44"
+            minDate={startDate}
+            align="right"
+          />
+        </div>
       </div>
 
       <div className="flex gap-6 border-b border-border overflow-x-auto">
@@ -212,7 +243,7 @@ export default function ReportsPage() {
 
       {activeTab === "Vue générale" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
@@ -226,6 +257,23 @@ export default function ReportsPage() {
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Users className="w-6 h-6 text-foreground" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Nouveaux inscrits</p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">
+                    {newStudentsThisMonth}
+                  </h3>
+                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
+                    <ArrowUpRight className="w-4 h-4 mr-1" /> Ce mois-ci
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                  <Target className="w-6 h-6 text-foreground" />
                 </div>
               </div>
             </div>
