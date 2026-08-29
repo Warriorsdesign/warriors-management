@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { mockExpenses, Expense } from "@/lib/data/mockData";
+import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -15,6 +16,7 @@ export default function ExpensesPage() {
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const showToast = useUIStore(state => state.showToast);
   
   const [selectedCategory, setSelectedCategory] = useState<string>("Toutes");
 
@@ -95,6 +97,7 @@ export default function ExpensesPage() {
     setExpenses(updated);
     localStorage.setItem('warriors_mock_expenses', JSON.stringify(updated));
     setIsModalOpen(false);
+    showToast(editingExpense ? "Dépense modifiée avec succès." : "Dépense ajoutée avec succès.");
   };
 
   const handleDelete = () => {
@@ -103,6 +106,7 @@ export default function ExpensesPage() {
       setExpenses(updated);
       localStorage.setItem('warriors_mock_expenses', JSON.stringify(updated));
       setExpenseToDelete(null);
+      showToast("Dépense supprimée avec succès.");
     }
   };
 
@@ -136,8 +140,8 @@ export default function ExpensesPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
@@ -155,22 +159,15 @@ export default function ExpensesPage() {
               </button>
             )}
         </div>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-2 mt-2">
-        {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-              selectedCategory === cat
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:bg-secondary/80"
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
+          <div className="w-full sm:w-56">
+            <Select 
+              options={categories.map(c => ({ label: c === "Toutes" ? "Toutes les catégories" : c, value: c }))}
+              value={selectedCategory}
+              onChange={(val) => setSelectedCategory(val)}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden mt-4">

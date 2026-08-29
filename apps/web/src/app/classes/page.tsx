@@ -5,11 +5,13 @@ import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { mockClasses, mockFormations, ClassGroup, Formation, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
+import { mockClasses, mockFormations, mockCenters, ClassGroup, Formation, Center, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
+import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [formations, setFormations] = useState<Formation[]>([]);
+  const [centers, setCenters] = useState<Center[]>([]);
   const [studentsCountMap, setStudentsCountMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,6 +19,10 @@ export default function ClassesPage() {
   const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const showToast = useUIStore(state => state.showToast);
+  const [selectedFormation, setSelectedFormation] = useState<string>("Toutes");
+  const [selectedCenter, setSelectedCenter] = useState<string>("Tous");
 
   const [formData, setFormData] = useState({
     name: "",
@@ -36,6 +42,11 @@ export default function ClassesPage() {
       const storedClasses = localStorage.getItem('warriors_mock_classes');
       const loadedClasses = storedClasses ? JSON.parse(storedClasses) : mockClasses;
       setClasses(loadedClasses);
+
+      // Load centers
+      const storedCenters = localStorage.getItem('warriors_mock_centers');
+      const loadedCenters = storedCenters ? JSON.parse(storedCenters) : mockCenters;
+      setCenters(loadedCenters);
 
       // Load students to compute capacity properly
       const storedStudents = localStorage.getItem('warriors_mock_students');
@@ -111,6 +122,7 @@ export default function ClassesPage() {
     setClasses(updated);
     localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
     setIsModalOpen(false);
+    showToast(editingClass ? "Classe modifiée avec succès." : "Classe ajoutée avec succès.");
   };
 
   const handleDelete = () => {
@@ -119,6 +131,7 @@ export default function ClassesPage() {
       setClasses(updated);
       localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
       setClassToDelete(null);
+      showToast("Classe supprimée.");
     }
   };
 
@@ -129,9 +142,13 @@ export default function ClassesPage() {
 
   const formationOptions = formations.map(f => ({ label: f.name, value: f.id }));
 
-  const filteredClasses = classes.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClasses = classes.filter(c => {
+    let match = true;
+    if (selectedFormation !== "Toutes" && c.formationId !== selectedFormation) match = false;
+    if (selectedCenter !== "Tous" && c.centerId !== selectedCenter) match = false;
+    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) match = false;
+    return match;
+  });
 
   return (
     <div className="space-y-6 pb-10">
@@ -149,8 +166,8 @@ export default function ClassesPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
@@ -167,6 +184,22 @@ export default function ClassesPage() {
                 <X className="w-4 h-4" />
               </button>
             )}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
+          <div className="w-full sm:w-48">
+            <Select 
+              options={[{label: "Toutes les formations", value: "Toutes"}, ...formations.map(f => ({ label: f.name, value: f.id }))]}
+              value={selectedFormation}
+              onChange={(val) => setSelectedFormation(val)}
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select 
+              options={[{label: "Tous les centres", value: "Tous"}, ...centers.map(c => ({ label: c.name, value: c.id }))]}
+              value={selectedCenter}
+              onChange={(val) => setSelectedCenter(val)}
+            />
+          </div>
         </div>
       </div>
 

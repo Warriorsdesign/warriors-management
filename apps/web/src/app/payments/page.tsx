@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { mockPayments, mockStudents, Payment, Student } from "@/lib/data/mockData";
+import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -16,6 +17,9 @@ export default function PaymentsPage() {
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  const showToast = useUIStore(state => state.showToast);
+  const [selectedStatus, setSelectedStatus] = useState<string>("Tous");
 
   const [formData, setFormData] = useState({
     studentId: "",
@@ -102,6 +106,7 @@ export default function PaymentsPage() {
     setPayments(updated);
     localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
     setIsModalOpen(false);
+    showToast(editingPayment ? "Paiement modifié avec succès." : "Paiement ajouté avec succès.");
   };
 
   const handleDelete = () => {
@@ -110,6 +115,7 @@ export default function PaymentsPage() {
       setPayments(updated);
       localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
       setPaymentToDelete(null);
+      showToast("Paiement supprimé.");
     }
   };
 
@@ -132,10 +138,15 @@ export default function PaymentsPage() {
   ];
 
   const filteredPayments = payments.filter(p => {
+    let match = true;
     const studentName = getStudentName(p.studentId).toLowerCase();
     const ref = (p.reference || "").toLowerCase();
     const query = searchQuery.toLowerCase();
-    return studentName.includes(query) || ref.includes(query);
+    
+    if (searchQuery && !(studentName.includes(query) || ref.includes(query))) match = false;
+    if (selectedStatus !== "Tous" && p.status !== selectedStatus) match = false;
+    
+    return match;
   });
 
   return (
@@ -154,8 +165,8 @@ export default function PaymentsPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
@@ -172,6 +183,20 @@ export default function PaymentsPage() {
                 <X className="w-4 h-4" />
               </button>
             )}
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
+          <div className="w-full sm:w-48">
+            <Select 
+              options={[
+                {label: "Tous les statuts", value: "Tous"},
+                {label: "Complété", value: "complété"},
+                {label: "En attente", value: "en_attente"},
+                {label: "Échoué", value: "échoué"}
+              ]}
+              value={selectedStatus}
+              onChange={(val) => setSelectedStatus(val)}
+            />
+          </div>
         </div>
       </div>
 

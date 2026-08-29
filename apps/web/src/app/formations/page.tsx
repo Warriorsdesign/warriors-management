@@ -12,6 +12,7 @@ import {
   mockCenters, Center,
   mockStudents, Student 
 } from "@/lib/data/mockData";
+import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function FormationsPage() {
   const [formations, setFormations] = useState<Formation[]>([]);
@@ -24,6 +25,7 @@ export default function FormationsPage() {
   const [editingFormation, setEditingFormation] = useState<Formation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null);
+  const showToast = useUIStore(state => state.showToast);
   
   // For inline level editing
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
@@ -153,6 +155,14 @@ export default function FormationsPage() {
     setFormations(updated);
     localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
     setIsModalOpen(false);
+    showToast(editingFormation ? "Formation modifiée avec succès." : "Formation ajoutée avec succès.");
+  };
+
+  const handleDelete = (id: string) => {
+    const updated = formations.filter(f => f.id !== id);
+    setFormations(updated);
+    localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
+    showToast("Formation supprimée.");
   };
 
   const saveLevelName = (formationId: string, levelId: string) => {
@@ -169,6 +179,7 @@ export default function FormationsPage() {
     setFormations(updated);
     localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
     setEditingLevelId(null);
+    showToast("Nom du niveau mis à jour.");
   };
 
   const filteredFormations = formations.filter(f => 
@@ -198,8 +209,8 @@ export default function FormationsPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 

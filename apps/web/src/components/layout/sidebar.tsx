@@ -47,7 +47,7 @@ export function Sidebar() {
   const router = useRouter();
   const { isMobileMenuOpen, closeMobileMenu, isSidebarCollapsed, toggleSidebar } = useUIStore();
   const [organization, setOrganization] = useState<Organization>(mockOrganization);
-  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, role: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, role: string, avatarUrl?: string } | null>(null);
 
   useEffect(() => {
     const loadOrg = () => {
@@ -64,12 +64,32 @@ export function Sidebar() {
   }, []);
 
   useEffect(() => {
-    // Mock user profile since Supabase is removed
-    setUserProfile({
-      firstName: "Admin",
-      lastName: "System",
-      role: "ADMIN"
-    });
+    const loadUser = () => {
+      const saved = localStorage.getItem('warriors_mock_user');
+      if (saved) {
+        setUserProfile(JSON.parse(saved));
+      } else {
+        setUserProfile({
+          firstName: "Admin",
+          lastName: "System",
+          role: "ADMIN"
+        });
+      }
+    };
+    
+    loadUser(); // Initial load
+
+    const handleProfileUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setUserProfile(customEvent.detail);
+      } else {
+        loadUser();
+      }
+    };
+
+    window.addEventListener('user_profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('user_profile_updated', handleProfileUpdate);
   }, []);
 
   const handleLogout = async () => {
@@ -262,9 +282,15 @@ export function Sidebar() {
         {/* User Profile */}
         <div className={cn("p-4 border-t border-border mt-auto", isSidebarCollapsed && "flex flex-col items-center px-2")}>
           <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "gap-3 px-2")}>
-            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-sm flex-shrink-0">
-              {userProfile ? `${userProfile.firstName.charAt(0)}${userProfile.lastName.charAt(0)}` : 'U'}
-            </div>
+            {userProfile?.avatarUrl ? (
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-white flex-shrink-0">
+                <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-sm flex-shrink-0">
+                {userProfile ? `${userProfile.firstName.charAt(0)}${userProfile.lastName.charAt(0)}` : 'U'}
+              </div>
+            )}
             {!isSidebarCollapsed && (
               <>
                 <div className="flex-1 overflow-hidden">

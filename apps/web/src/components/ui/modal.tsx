@@ -25,13 +25,13 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm sm:p-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm sm:p-0 animate-fade-in">
       <div 
         className="absolute inset-0" 
         onClick={onClose}
       />
       <div className={cn(
-        "relative w-full max-w-[calc(100vw-2rem)] bg-card rounded-xl shadow-lg border border-border sm:max-w-lg flex flex-col max-h-[85vh]",
+        "relative w-full max-w-[calc(100vw-2rem)] bg-card rounded-xl shadow-lg border border-border sm:max-w-lg flex flex-col max-h-[85vh] animate-fade-in-up",
         className
       )}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">

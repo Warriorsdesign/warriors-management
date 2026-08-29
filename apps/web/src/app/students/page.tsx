@@ -11,9 +11,11 @@ import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Select } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
+import { useUIStore } from "@/lib/store/useUIStore";
 
 export default function StudentsPage() {
   const router = useRouter();
+  const showToast = useUIStore(state => state.showToast);
   
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [classes, setClasses] = useState<ClassGroup[]>(mockClasses);
@@ -307,9 +309,10 @@ export default function StudentsPage() {
       localStorage.setItem('warriors_mock_students', JSON.stringify(updatedStudents));
       setIsModalOpen(false);
       resetForm();
+      showToast(editingStudent ? "Étudiant modifié avec succès." : "Étudiant ajouté avec succès.");
     } catch (error) {
       console.error("Error saving student", error);
-      alert("Une erreur est survenue lors de la sauvegarde.");
+      showToast("Une erreur est survenue lors de la sauvegarde.", 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -371,8 +374,8 @@ export default function StudentsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between mb-6">
+        <div className="relative w-full md:w-96">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
@@ -834,9 +837,10 @@ export default function StudentsPage() {
                     setStudents(updated);
                     localStorage.setItem('warriors_mock_students', JSON.stringify(updated));
                     setStudentToDelete(null);
+                    showToast("Étudiant supprimé.");
                   } catch (error) {
                     console.error("Failed to delete student", error);
-                    alert("Une erreur est survenue lors de la suppression.");
+                    showToast("Une erreur est survenue lors de la suppression.", 'error');
                   }
                 }
               }}

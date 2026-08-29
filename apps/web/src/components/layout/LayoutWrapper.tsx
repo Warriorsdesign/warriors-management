@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { Toast } from "@/components/ui/toast";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,6 +22,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <Toast />
     </div>
   );
 }

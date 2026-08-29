@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, Bell, Menu } from "lucide-react";
 import { mockCenters } from "@/lib/data/mockData";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,37 @@ export function Topbar() {
   const toggleMobileMenu = useUIStore(state => state.toggleMobileMenu);
   const pathname = usePathname();
   const isDashboard = pathname === "/";
+
+  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, role: string, avatarUrl?: string } | null>(null);
+
+  useEffect(() => {
+    const loadUser = () => {
+      const saved = localStorage.getItem('warriors_mock_user');
+      if (saved) {
+        setUserProfile(JSON.parse(saved));
+      } else {
+        setUserProfile({
+          firstName: "Admin",
+          lastName: "System",
+          role: "ADMIN"
+        });
+      }
+    };
+    
+    loadUser(); // Initial load
+
+    const handleProfileUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        setUserProfile(customEvent.detail);
+      } else {
+        loadUser();
+      }
+    };
+
+    window.addEventListener('user_profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('user_profile_updated', handleProfileUpdate);
+  }, []);
 
   const [selectedCenters, setSelectedCenters] = useState<string[]>([]);
   const centerOptions = mockCenters.map(c => ({ label: c.name, value: c.id }));
@@ -53,9 +84,15 @@ export function Topbar() {
             <span className="absolute top-0 right-0 w-2 h-2 bg-destructive rounded-full border-2 border-card"></span>
           </button>
           
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold ml-1 md:ml-2 flex-shrink-0">
-            CD
-          </div>
+          {userProfile?.avatarUrl ? (
+            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-white ml-1 md:ml-2">
+              <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold ml-1 md:ml-2 flex-shrink-0">
+              {userProfile ? `${userProfile.firstName.charAt(0)}${userProfile.lastName.charAt(0)}` : 'U'}
+            </div>
+          )}
         </div>
       </div>
     </header>

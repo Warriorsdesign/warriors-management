@@ -7,6 +7,7 @@ import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizont
 import { mockUsers, User, mockCenters, Center, Role, UserStatus } from '@/lib/data/mockData';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
+import { useUIStore } from "@/lib/store/useUIStore";
 
 const roleColors: Record<Role, string> = {
   "ADMIN": "bg-cyan-50 text-cyan-600",
@@ -19,6 +20,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [centers, setCenters] = useState<Center[]>([]);
   
+  const showToast = useUIStore(state => state.showToast);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [centerFilter, setCenterFilter] = useState('all');
@@ -137,6 +139,7 @@ export default function UsersPage() {
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
     }
     setIsModalOpen(false);
+    showToast(editingUser ? "Utilisateur modifié avec succès." : "Utilisateur ajouté avec succès.");
   };
 
   const handleDelete = () => {
@@ -146,6 +149,7 @@ export default function UsersPage() {
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
       setIsDeleteModalOpen(false);
       setEditingUser(null);
+      showToast("Utilisateur supprimé.");
     }
   };
 
@@ -172,8 +176,8 @@ export default function UsersPage() {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="relative w-full md:w-1/2">
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input 
             type="text" 
@@ -192,7 +196,8 @@ export default function UsersPage() {
           )}
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto md:ml-auto">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto ml-auto">
+          <div className="w-full sm:w-48">
           <Select
             value={roleFilter}
             onChange={setRoleFilter}
@@ -204,14 +209,17 @@ export default function UsersPage() {
               { label: 'Agent', value: 'AGENT' },
             ]}
           />
-          <Select
+          </div>
+          <div className="w-full sm:w-48">
+            <Select
             value={centerFilter}
             onChange={setCenterFilter}
             options={[
               { label: 'Tous les centres', value: 'all' },
               ...centers.map(c => ({ label: c.name, value: c.id }))
             ]}
-          />
+            />
+          </div>
         </div>
       </div>
 
