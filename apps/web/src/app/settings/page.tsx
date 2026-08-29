@@ -144,12 +144,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleClearData = () => {
-    if (window.confirm("Êtes-vous sûr de vouloir effacer TOUTES les données ? Cette action est irréversible et supprimera tous les étudiants, paiements, classes et configurations.")) {
-      localStorage.clear();
-      window.location.href = "/";
-    }
-  };
+
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Chargement...</div>;
@@ -198,25 +193,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div>
-            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-2">
-              Espace de Travail
-            </div>
-            <div className="space-y-1">
-              <button 
-                onClick={() => setActiveTab("security")}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                  activeTab === "security" 
-                    ? "bg-rose-50 text-rose-600 font-semibold" 
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                )}
-              >
-                <Shield className="w-4 h-4" />
-                Sécurité & Données
-              </button>
-            </div>
-          </div>
+
         </div>
 
         {/* Content */}
@@ -434,40 +411,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* SECURITY TAB */}
-          {activeTab === "security" && (
-            <div className="max-w-2xl space-y-8 animate-in fade-in duration-300">
-              <div className="border-b border-border pb-4">
-                <h2 className="text-xl font-semibold text-rose-600">Sécurité et Données</h2>
-                <p className="text-sm text-muted-foreground mt-1">Actions sensibles et irréversibles.</p>
-              </div>
 
-              <div className="border border-rose-200 rounded-xl overflow-hidden">
-                <div className="p-6 bg-rose-50/50">
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 bg-rose-100 rounded-lg text-rose-600 shrink-0">
-                      <AlertTriangle className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <h3 className="text-base font-semibold text-rose-900">Effacer toutes les données</h3>
-                      <p className="text-sm text-rose-700/80">
-                        Cette action est permanente. Elle supprimera toutes les données stockées localement (étudiants, paiements, classes, configurations) et réinitialisera l'application à zéro.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-rose-100/30 border-t border-rose-200 flex justify-end">
-                  <button
-                    onClick={handleClearData}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 text-white hover:bg-rose-700 text-sm font-medium rounded-md transition-colors shadow-sm"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Réinitialiser les données
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
         </div>
       </div>
