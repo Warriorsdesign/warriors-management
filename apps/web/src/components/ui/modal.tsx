@@ -8,9 +8,10 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, className, contentClassName }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -43,7 +44,7 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto">
+        <div className={cn("p-6 overflow-y-auto", contentClassName)}>
           {children}
         </div>
       </div>

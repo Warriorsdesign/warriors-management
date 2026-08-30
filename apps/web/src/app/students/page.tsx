@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { Card } from "@/components/ui/card";
 import { DatePicker } from "@/components/ui/date-picker";
 import { mockStudents, mockClasses, mockFormations, mockPaymentSchedules, mockPayments, Student, StudentStatus, getComputedClassStatus, ClassGroup, Formation, Payment, PaymentSchedule, PaymentStatus } from "@/lib/data/mockData";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import Link from "next/link";
 import { Select } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
@@ -49,6 +49,7 @@ export default function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState<any>(null);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -199,10 +200,30 @@ export default function StudentsPage() {
       installmentsCount: '3',
       installmentInterval: '1_mois'
     });
+    setErrors({});
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const newErrors: Record<string, string> = {};
+    if (!formData.firstName.trim()) newErrors.firstName = "Veuillez renseigner le prénom.";
+    if (!formData.lastName.trim()) newErrors.lastName = "Veuillez renseigner le nom.";
+    if (!formData.contact.trim()) newErrors.contact = "Veuillez renseigner le contact.";
+    if (!formData.formationId) newErrors.formationId = "Veuillez sélectionner une formation.";
+    if (!formData.classId) newErrors.classId = "Veuillez sélectionner une classe.";
+    
+    if (!editingStudent) {
+      if (!formData.registrationFee || parseInt(formData.registrationFee) <= 0) {
+        newErrors.registrationFee = "Veuillez renseigner les frais d'inscription.";
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -345,22 +366,7 @@ export default function StudentsPage() {
         <button
           onClick={() => {
             setEditingStudent(null);
-            setFormData({
-              firstName: '',
-              lastName: '',
-              gender: 'Male',
-              contact: '',
-              matricule: '',
-              formationId: '',
-              classId: '',
-              currentLevel: '',
-              currentStatus: 'nouvel_inscrit',
-              enrollmentDate: new Date().toISOString().split('T')[0],
-              registrationFee: '',
-              paymentMethod: 'Espèces',
-              installmentsCount: '3',
-              installmentInterval: '1_mois'
-            });
+            resetForm();
             setIsModalOpen(true);
           }}
           className="flex justify-center items-center gap-2 bg-primary text-primary-foreground h-9 px-4 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto"
@@ -370,7 +376,6 @@ export default function StudentsPage() {
         </button>
       </div>
 
-      {/* Toolbar */}
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
         <div className="relative w-full md:w-1/2">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -409,7 +414,6 @@ export default function StudentsPage() {
       </div>
 
       <Card className="shadow-none rounded-xl border-border overflow-hidden">
-        {/* Table */}
         <div className="overflow-x-auto rounded-t-xl min-h-[300px] pb-24">
           <table className="w-full min-w-[1000px] text-sm text-left">
             <thead>
@@ -435,7 +439,6 @@ export default function StudentsPage() {
                   const classGroup = classes.find(c => c.id === student.classId);
                   const formation = formations.find(f => f.id === classGroup?.formationId);
 
-                  // Récupérer les échéanciers en temps réel pour l'étudiant
                   const storedSchedulesStr = localStorage.getItem('warriors_mock_payment_schedules');
                   const currentSchedules = storedSchedulesStr ? JSON.parse(storedSchedulesStr) : mockPaymentSchedules;
                   const paymentSchedule = currentSchedules.find((p: PaymentSchedule) => p.studentId === student.id);
@@ -523,7 +526,6 @@ export default function StudentsPage() {
           </table>
         </div>
 
-        {/* Pagination Footer */}
         <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-secondary/20">
           <div className="text-xs text-muted-foreground">
             Affichage de <span className="font-medium text-foreground">{Math.min(filteredStudents.length, (currentPage - 1) * itemsPerPage + 1)}</span> à <span className="font-medium text-foreground">{Math.min(filteredStudents.length, currentPage * itemsPerPage)}</span> sur <span className="font-medium text-foreground">{filteredStudents.length}</span> résultats
@@ -578,22 +580,34 @@ export default function StudentsPage() {
                 <input
                   type="text"
                   value={formData.firstName}
-                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  onChange={(e) => {
+                    setFormData({ ...formData, firstName: e.target.value });
+                    if (errors.firstName) setErrors({ ...errors, firstName: '' });
+                  }}
+                  className={cn(
+                    "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                    errors.firstName ? "border-red-500 focus:ring-red-500/50" : "border-border focus:ring-primary"
+                  )}
                   placeholder="Ex: Jean"
-                  required
                 />
+                {errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Nom</label>
                 <input
                   type="text"
                   value={formData.lastName}
-                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  onChange={(e) => {
+                    setFormData({ ...formData, lastName: e.target.value });
+                    if (errors.lastName) setErrors({ ...errors, lastName: '' });
+                  }}
+                  className={cn(
+                    "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                    errors.lastName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                  )}
                   placeholder="Ex: Dupont"
-                  required
                 />
+                {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Sexe</label>
@@ -611,10 +625,17 @@ export default function StudentsPage() {
                 <input
                   type="tel"
                   value={formData.contact}
-                  onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                  className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  onChange={(e) => {
+                    setFormData({ ...formData, contact: e.target.value });
+                    if (errors.contact) setErrors({ ...errors, contact: '' });
+                  }}
+                  className={cn(
+                    "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                    errors.contact ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                  )}
                   placeholder="Ex: +237..."
                 />
+                {errors.contact && <p className="text-xs text-red-500">{errors.contact}</p>}
               </div>
             </div>
           </div>
@@ -629,16 +650,24 @@ export default function StudentsPage() {
                 <label className="text-xs font-medium text-muted-foreground">Formation</label>
                 <Select
                   value={formData.formationId}
-                  onChange={(val) => setFormData({ ...formData, formationId: val, classId: '' })}
+                  onChange={(val) => {
+                    setFormData({ ...formData, formationId: val, classId: '' });
+                    if (errors.formationId) setErrors({ ...errors, formationId: '' });
+                  }}
                   placeholder="Sélectionner une formation"
                   options={formations.map(f => ({ label: f.name, value: f.id }))}
+                  className={errors.formationId ? "border-red-500 animate-shake" : ""}
                 />
+                {errors.formationId && <p className="text-xs text-red-500">{errors.formationId}</p>}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Classe</label>
                 <Select
                   value={formData.classId}
-                  onChange={(val) => setFormData({ ...formData, classId: val })}
+                  onChange={(val) => {
+                    setFormData({ ...formData, classId: val });
+                    if (errors.classId) setErrors({ ...errors, classId: '' });
+                  }}
                   placeholder="Sélectionner une classe"
                   disabled={!formData.formationId}
                   options={classes
@@ -652,7 +681,9 @@ export default function StudentsPage() {
                       return { label: c.name, value: c.id };
                     })
                   }
+                  className={errors.classId ? "border-red-500 animate-shake" : ""}
                 />
+                {errors.classId && <p className="text-xs text-red-500">{errors.classId}</p>}
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Statut initial</label>
@@ -709,8 +740,14 @@ export default function StudentsPage() {
                         <input
                           type="number"
                           value={formData.registrationFee}
-                          onChange={(e) => setFormData({ ...formData, registrationFee: e.target.value })}
-                          className="w-full bg-background border border-border rounded-md pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                          onChange={(e) => {
+                            setFormData({ ...formData, registrationFee: e.target.value });
+                            if (errors.registrationFee) setErrors({ ...errors, registrationFee: '' });
+                          }}
+                          className={cn(
+                            "w-full bg-background border rounded-md pl-3 pr-16 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                            errors.registrationFee ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                          )}
                           placeholder="Montant payé aujourd'hui"
                           min="0"
                           max={totalCost}
@@ -719,8 +756,8 @@ export default function StudentsPage() {
                           <span className="text-xs text-muted-foreground font-medium">FCFA</span>
                         </div>
                       </div>
+                      {errors.registrationFee && <p className="text-xs text-red-500">{errors.registrationFee}</p>}
                     </div>
-
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-muted-foreground">Mode de paiement</label>
                       <Select

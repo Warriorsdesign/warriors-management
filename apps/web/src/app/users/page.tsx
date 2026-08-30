@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon } from 'lucide-react';
+import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy } from 'lucide-react';
 import { mockUsers, User, mockCenters, Center, Role, UserStatus } from '@/lib/data/mockData';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { useUIStore } from '@/lib/store/useUIStore';
 
 const roleColors: Record<Role, string> = {
   "ADMIN": "bg-cyan-50 text-cyan-600",
@@ -27,6 +29,8 @@ export default function UsersPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [newUserInfo, setNewUserInfo] = useState<{ matricule: string; password: string } | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -38,6 +42,7 @@ export default function UsersPage() {
   }, []);
 
   const [formData, setFormData] = useState<{
+    matricule: string;
     firstName: string;
     lastName: string;
     email: string;
@@ -45,6 +50,7 @@ export default function UsersPage() {
     status: string;
     centerIds: string[];
   }>({
+    matricule: '',
     firstName: '',
     lastName: '',
     email: '',
@@ -74,7 +80,11 @@ export default function UsersPage() {
 
   const openAddModal = () => {
     setEditingUser(null);
+    const currentYear = new Date().getFullYear().toString();
+    const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+    const matricule = `WM${currentYear}${randomPart}`;
     setFormData({
+      matricule,
       firstName: '',
       lastName: '',
       email: '',
@@ -82,12 +92,14 @@ export default function UsersPage() {
       status: 'actif',
       centerIds: [],
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const openEditModal = (user: User) => {
     setEditingUser(user);
     setFormData({
+      matricule: user.matricule || '',
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
@@ -95,6 +107,7 @@ export default function UsersPage() {
       status: user.status,
       centerIds: user.centerIds || [],
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
@@ -110,6 +123,17 @@ export default function UsersPage() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const newErrors: Record<string, string> = {};
+    if (!formData.firstName.trim()) newErrors.firstName = "Veuillez renseigner ce champ.";
+    if (!formData.lastName.trim()) newErrors.lastName = "Veuillez renseigner ce champ.";
+    if (!formData.email.trim()) newErrors.email = "Veuillez renseigner ce champ.";
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
     if (editingUser) {
       const updated = users.map(u => u.id === editingUser.id ? {
         ...u,
@@ -122,9 +146,13 @@ export default function UsersPage() {
       } : u);
       setUsers(updated);
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
+      setIsModalOpen(false);
     } else {
+      const defaultPassword = formData.matricule;
+
       const newUser: User = {
         id: `u-${Date.now()}`,
+        matricule: formData.matricule,
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -132,11 +160,13 @@ export default function UsersPage() {
         status: formData.status as UserStatus,
         centerIds: formData.centerIds
       };
+      
       const updated = [...users, newUser];
       setUsers(updated);
       localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
+      setIsModalOpen(false);
+      setNewUserInfo({ matricule: formData.matricule, password: defaultPassword });
     }
-    setIsModalOpen(false);
   };
 
   const handleDelete = () => {
@@ -266,12 +296,11 @@ export default function UsersPage() {
             <h3 className="text-base font-semibold text-foreground px-4 text-center truncate w-full">
               {user.firstName} {user.lastName}
             </h3>
-
-            <p className="text-xs text-muted-foreground mt-1 px-4 text-center truncate w-full">
-              {user.role === 'ADMIN' ? 'Administrateur Système' :
-                user.role === 'GESTIONNAIRE' ? 'Gestionnaire Opérationnel' :
-                  user.role === 'COMPTABLE' ? 'Responsable Financier' : 'Agent Administratif'}
-            </p>
+            {user.matricule && (
+              <p className="text-[11px] font-mono text-muted-foreground mt-0.5 px-4 text-center">
+                {user.matricule}
+              </p>
+            )}
 
             <p
               className="text-[11px] text-muted-foreground/80 mt-0.5 px-4 text-center truncate w-full"
@@ -322,15 +351,33 @@ export default function UsersPage() {
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground">Matricule</label>
+              <input
+                type="text"
+                value={formData.matricule}
+                disabled
+                className="w-full bg-muted/30 text-muted-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none cursor-not-allowed opacity-80"
+              />
+            </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Prénom</label>
               <input
                 type="text"
                 value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, firstName: e.target.value });
+                  if (errors.firstName) setErrors({ ...errors, firstName: '' });
+                }}
+                className={cn(
+                  "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                  errors.firstName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                )}
               />
+              {errors.firstName && (
+                <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.firstName}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -338,10 +385,18 @@ export default function UsersPage() {
               <input
                 type="text"
                 value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, lastName: e.target.value });
+                  if (errors.lastName) setErrors({ ...errors, lastName: '' });
+                }}
+                className={cn(
+                  "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                  errors.lastName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                )}
               />
+              {errors.lastName && (
+                <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.lastName}</p>
+              )}
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
@@ -349,10 +404,18 @@ export default function UsersPage() {
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value });
+                  if (errors.email) setErrors({ ...errors, email: '' });
+                }}
+                className={cn(
+                  "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
+                  errors.email ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
+                )}
               />
+              {errors.email && (
+                <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -449,6 +512,61 @@ export default function UsersPage() {
               className="px-5 py-2.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition-colors"
             >
               Oui, supprimer
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Mot de Passe */}
+      <Modal
+        isOpen={newUserInfo !== null}
+        onClose={() => setNewUserInfo(null)}
+        title="Compte créé avec succès"
+      >
+        <div className="space-y-6 py-4">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center">
+              <Mail className="w-8 h-8 text-emerald-500" />
+            </div>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              L'utilisateur a été ajouté. Voici ses identifiants de connexion. <br />
+              <span className="font-semibold text-rose-500">Ce mot de passe devra être changé lors de la première connexion.</span>
+            </p>
+          </div>
+
+          <div className="bg-secondary/50 rounded-lg p-4 grid grid-cols-[180px_1fr] gap-y-3 items-center">
+            <span className="text-sm font-medium text-muted-foreground">Matricule</span>
+            <span className="text-sm font-bold text-foreground font-mono">{newUserInfo?.matricule}</span>
+            
+            <div className="col-span-2 border-t border-border/50 my-1"></div>
+            
+            <span className="text-sm font-medium text-muted-foreground">Mot de passe provisoire</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-foreground font-mono bg-background px-2 py-1 rounded border border-border shadow-sm">
+                {newUserInfo?.password}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newUserInfo?.password) {
+                    navigator.clipboard.writeText(newUserInfo.password);
+                    useUIStore.getState().showToast('Mot de passe copié', 'success');
+                  }
+                }}
+                className="p-1.5 hover:bg-black/5 rounded-md text-muted-foreground transition-colors"
+                title="Copier le mot de passe"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={() => setNewUserInfo(null)}
+              className="px-6 py-2.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors w-full"
+            >
+              Fermer
             </button>
           </div>
         </div>

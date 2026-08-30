@@ -9,16 +9,20 @@ interface SelectProps {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  isSearchable?: boolean;
 }
 
-export function Select({ options, value, onChange, className, placeholder = "Sélectionner...", disabled = false }: SelectProps) {
+export function Select({ options, value, onChange, className, placeholder = "Sélectionner...", disabled = false, isSearchable = false }: SelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchQuery("");
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -27,6 +31,16 @@ export function Select({ options, value, onChange, className, placeholder = "Sé
 
   const selectedOption = options.find(o => o.value === value);
   const displayText = selectedOption ? selectedOption.label : placeholder;
+
+  const filteredOptions = isSearchable 
+    ? options.filter(o => o.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    : options;
+
+  useEffect(() => {
+    if (isOpen && isSearchable && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isOpen, isSearchable]);
 
   return (
     <div className={cn("relative w-full", className, disabled && "opacity-50 cursor-not-allowed")} ref={containerRef}>
@@ -47,26 +61,46 @@ export function Select({ options, value, onChange, className, placeholder = "Sé
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full p-1 mt-1 bg-card border border-border rounded-md shadow-xl max-h-[400px] overflow-y-auto">
-          {options.map(option => {
-            const isSelected = value === option.value;
-            return (
-              <div
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
-                className={cn(
-                  "flex items-center justify-between px-3 py-2 rounded-sm cursor-pointer text-sm transition-colors",
-                  isSelected ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-foreground"
-                )}
-              >
-                <span>{option.label}</span>
-                {isSelected && <Check className="w-4 h-4 text-primary" />}
-              </div>
-            );
-          })}
+        <div className="absolute z-50 w-full p-1 mt-1 bg-card border border-border rounded-md shadow-xl max-h-[400px] flex flex-col">
+          {isSearchable && (
+            <div className="p-2 border-b border-border sticky top-0 bg-card z-10">
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Rechercher..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-2 py-1.5 text-sm bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+          )}
+          <div className="overflow-y-auto flex-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-muted-foreground">Aucun résultat</div>
+            ) : (
+              filteredOptions.map(option => {
+                const isSelected = value === option.value;
+                return (
+                  <div
+                    key={option.value}
+                    onClick={() => {
+                      onChange(option.value);
+                      setIsOpen(false);
+                      setSearchQuery("");
+                    }}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 rounded-sm cursor-pointer text-sm transition-colors",
+                      isSelected ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <span>{option.label}</span>
+                    {isSelected && <Check className="w-4 h-4 text-primary" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
     </div>

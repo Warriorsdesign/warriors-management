@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { mockExpenses, Expense } from "@/lib/data/mockData";
 
 export default function ExpensesPage() {
@@ -15,6 +16,7 @@ export default function ExpensesPage() {
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [selectedCategory, setSelectedCategory] = useState<string>("Toutes");
 
@@ -50,6 +52,7 @@ export default function ExpensesPage() {
 
   const openAddModal = () => {
     setEditingExpense(null);
+    setErrors({});
     setFormData({
       title: "",
       amount: "",
@@ -61,6 +64,7 @@ export default function ExpensesPage() {
 
   const openEditModal = (e: Expense) => {
     setEditingExpense(e);
+    setErrors({});
     setFormData({
       title: e.title,
       amount: e.amount.toString(),
@@ -72,6 +76,22 @@ export default function ExpensesPage() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const newErrors: Record<string, string> = {};
+    if (!formData.title.trim()) {
+      newErrors.title = "Veuillez renseigner ce champ.";
+    }
+    if (!formData.amount || parseInt(formData.amount) <= 0) {
+      newErrors.amount = "Veuillez renseigner un montant valide.";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      // Optional: clear errors after animation duration to allow re-triggering shake
+      setTimeout(() => setErrors({}), 3000);
+      return;
+    }
+
     let updated;
     if (editingExpense) {
       updated = expenses.map(exp => exp.id === editingExpense.id ? {
@@ -213,7 +233,7 @@ export default function ExpensesPage() {
                             }}
                             className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
                           >
-                            <Edit className="w-4 h-4" /> Éditer
+                            <Edit className="w-4 h-4" /> Modifier
                           </button>
                           <button
                             onClick={() => {
@@ -238,7 +258,8 @@ export default function ExpensesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingExpense ? "Éditer la dépense" : "Enregistrer une dépense"}
+        title={editingExpense ? "Modifier la dépense" : "Enregistrer une dépense"}
+        contentClassName="overflow-visible"
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
@@ -246,11 +267,21 @@ export default function ExpensesPage() {
             <input
               type="text"
               value={formData.title}
-              onChange={e => setFormData({ ...formData, title: e.target.value })}
-              required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              onChange={e => {
+                setFormData({ ...formData, title: e.target.value });
+                if (errors.title) setErrors({ ...errors, title: "" });
+              }}
+              className={cn(
+                "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                errors.title 
+                  ? "border-red-500 focus:ring-red-500/50 animate-shake" 
+                  : "border-border focus:ring-primary/50"
+              )}
               placeholder="Ex: Achat de matériel"
             />
+            {errors.title && (
+              <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.title}</p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -258,15 +289,25 @@ export default function ExpensesPage() {
             <input
               type="number"
               value={formData.amount}
-              onChange={e => setFormData({ ...formData, amount: e.target.value })}
-              required
+              onChange={e => {
+                setFormData({ ...formData, amount: e.target.value });
+                if (errors.amount) setErrors({ ...errors, amount: "" });
+              }}
               min="0"
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              className={cn(
+                "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                errors.amount 
+                  ? "border-red-500 focus:ring-red-500/50 animate-shake" 
+                  : "border-border focus:ring-primary/50"
+              )}
             />
+            {errors.amount && (
+              <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.amount}</p>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-4 relative z-40">
+            <div className="space-y-2 relative z-50">
               <label className="text-sm font-medium">Catégorie</label>
               <Select
                 options={categories.filter(c => c !== "Toutes").map(c => ({ label: c, value: c }))}
@@ -277,12 +318,9 @@ export default function ExpensesPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={e => setFormData({ ...formData, date: e.target.value })}
-                required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              <DatePicker
+                value={formData.date ? new Date(formData.date) : undefined}
+                onChange={(d) => setFormData({ ...formData, date: d ? d.toISOString().split('T')[0] : "" })}
               />
             </div>
           </div>

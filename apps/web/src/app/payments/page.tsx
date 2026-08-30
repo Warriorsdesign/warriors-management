@@ -5,6 +5,7 @@ import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { mockPayments, mockStudents, Payment, Student } from "@/lib/data/mockData";
 
 export default function PaymentsPage() {
@@ -226,7 +227,7 @@ export default function PaymentsPage() {
                             }}
                             className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
                           >
-                            <Edit className="w-4 h-4" /> Éditer
+                            <Edit className="w-4 h-4" /> Modifier
                           </button>
                           <button
                             onClick={() => {
@@ -251,17 +252,20 @@ export default function PaymentsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingPayment ? "Éditer le paiement" : "Enregistrer un paiement"}
+        title={editingPayment ? "Modifier le paiement" : "Enregistrer un paiement"}
+        contentClassName="overflow-visible"
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
 
-          <div className="space-y-2">
+          <div className="space-y-2 relative z-50">
             <label className="text-sm font-medium">Étudiant</label>
             <Select
               options={studentOptions}
               value={formData.studentId}
               onChange={(val) => setFormData({ ...formData, studentId: val })}
               placeholder="Sélectionner un étudiant"
+              isSearchable={true}
+              disabled={!!editingPayment}
             />
           </div>
 
@@ -277,7 +281,7 @@ export default function PaymentsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 relative z-40">
             <div className="space-y-2">
               <label className="text-sm font-medium">Méthode</label>
               <Select
@@ -289,12 +293,9 @@ export default function PaymentsPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Date</label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={e => setFormData({ ...formData, date: e.target.value })}
-                required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              <DatePicker
+                value={formData.date ? new Date(formData.date) : undefined}
+                onChange={(d) => setFormData({ ...formData, date: d ? d.toISOString().split('T')[0] : "" })}
               />
             </div>
           </div>

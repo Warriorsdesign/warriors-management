@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [org, setOrg] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
   const showToast = useUIStore(state => state.showToast);
   
@@ -107,6 +108,12 @@ export default function SettingsPage() {
   const handleOrgSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!org) return;
+
+    if (!orgFormData.name.trim()) {
+      setErrors({ orgName: "Veuillez renseigner le nom de l'organisation." });
+      return;
+    }
+    setErrors({});
     const updated: Organization = {
       ...org,
       name: orgFormData.name,
@@ -123,6 +130,17 @@ export default function SettingsPage() {
 
   const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const newErrors: Record<string, string> = {};
+    if (!userFormData.firstName.trim()) newErrors.firstName = "Veuillez renseigner votre prénom.";
+    if (!userFormData.lastName.trim()) newErrors.lastName = "Veuillez renseigner votre nom.";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    setErrors({});
+    
     const updatedUser = {
       firstName: userFormData.firstName,
       lastName: userFormData.lastName,
@@ -242,20 +260,32 @@ export default function SettingsPage() {
                     <input 
                       type="text" 
                       value={userFormData.firstName}
-                      onChange={e => setUserFormData({...userFormData, firstName: e.target.value})}
-                      required
-                      className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                      onChange={(e) => {
+                        setUserFormData({...userFormData, firstName: e.target.value});
+                        if (errors.firstName) setErrors({ ...errors, firstName: '' });
+                      }}
+                      className={cn(
+                        "w-full p-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                        errors.firstName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                      )}
                     />
+                    {errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Nom</label>
                     <input 
                       type="text" 
                       value={userFormData.lastName}
-                      onChange={e => setUserFormData({...userFormData, lastName: e.target.value})}
-                      required
-                      className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                      onChange={(e) => {
+                        setUserFormData({...userFormData, lastName: e.target.value});
+                        if (errors.lastName) setErrors({ ...errors, lastName: '' });
+                      }}
+                      className={cn(
+                        "w-full p-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                        errors.lastName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                      )}
                     />
+                    {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
                   </div>
                 </div>
 
@@ -354,11 +384,17 @@ export default function SettingsPage() {
                       <input 
                         type="text" 
                         value={orgFormData.name}
-                        onChange={e => setOrgFormData({...orgFormData, name: e.target.value})}
-                        required
-                        className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm" 
+                        onChange={(e) => {
+                          setOrgFormData({...orgFormData, name: e.target.value});
+                          if (errors.orgName) setErrors({ ...errors, orgName: '' });
+                        }}
+                        className={cn(
+                          "w-full p-2.5 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                          errors.orgName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                        )}
                         placeholder="Ex: Warriors Management"
                       />
+                      {errors.orgName && <p className="text-xs text-red-500">{errors.orgName}</p>}
                     </div>
 
                     <div className="space-y-2">

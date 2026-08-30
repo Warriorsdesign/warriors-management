@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { mockClasses, mockFormations, ClassGroup, Formation, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
+import { cn } from "@/lib/utils";
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -17,6 +18,7 @@ export default function ClassesPage() {
   const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: "",
@@ -72,6 +74,7 @@ export default function ClassesPage() {
       centerId: "center_1",
       capacity: "30",
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
@@ -83,11 +86,23 @@ export default function ClassesPage() {
       centerId: c.centerId,
       capacity: c.capacity.toString(),
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) newErrors.name = "Veuillez renseigner le nom de la classe.";
+    if (!formData.formationId) newErrors.formationId = "Veuillez sélectionner une formation.";
+    if (!formData.capacity || parseInt(formData.capacity) <= 0) newErrors.capacity = "Capacité invalide.";
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
     let updated;
     if (editingClass) {
       updated = classes.map(c => c.id === editingClass.id ? {
@@ -230,7 +245,7 @@ export default function ClassesPage() {
                               }}
                               className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
                             >
-                              <Edit className="w-4 h-4" /> Éditer
+                              <Edit className="w-4 h-4" /> Modifier
                             </button>
                             <button
                               onClick={() => {
@@ -256,7 +271,7 @@ export default function ClassesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingClass ? "Éditer la classe" : "Créer une nouvelle classe"}
+        title={editingClass ? "Modifier la classe" : "Créer une nouvelle classe"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
@@ -264,11 +279,17 @@ export default function ClassesPage() {
             <input
               type="text"
               value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (errors.name) setErrors({ ...errors, name: '' });
+              }}
+              className={cn(
+                "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                errors.name ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+              )}
               placeholder="Ex: Cohorte 2026 - A"
             />
+            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
 
           <div className="space-y-2">
@@ -276,9 +297,14 @@ export default function ClassesPage() {
             <Select
               options={formationOptions}
               value={formData.formationId}
-              onChange={(val) => setFormData({ ...formData, formationId: val })}
+              onChange={(val) => {
+                setFormData({ ...formData, formationId: val });
+                if (errors.formationId) setErrors({ ...errors, formationId: '' });
+              }}
               placeholder="Sélectionner une formation"
+              className={errors.formationId ? "border-red-500 animate-shake" : ""}
             />
+            {errors.formationId && <p className="text-xs text-red-500">{errors.formationId}</p>}
           </div>
 
           <div className="space-y-2">
@@ -286,11 +312,17 @@ export default function ClassesPage() {
             <input
               type="number"
               value={formData.capacity}
-              onChange={e => setFormData({ ...formData, capacity: e.target.value })}
-              required
+              onChange={(e) => {
+                setFormData({ ...formData, capacity: e.target.value });
+                if (errors.capacity) setErrors({ ...errors, capacity: '' });
+              }}
               min="1"
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+              className={cn(
+                "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                errors.capacity ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+              )}
             />
+            {errors.capacity && <p className="text-xs text-red-500 mt-1">{errors.capacity}</p>}
           </div>
 
 

@@ -22,6 +22,7 @@ export interface Center {
 
 export interface User {
   id: string;
+  matricule?: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -33,7 +34,7 @@ export interface User {
 export interface Formation {
   id: string;
   name: string;
-  duration: string;
+  duration: number;
   hasLevels: boolean;
   levelCount?: number;
   levels?: { id: string; name: string }[];

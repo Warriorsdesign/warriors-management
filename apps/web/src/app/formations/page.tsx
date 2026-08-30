@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, Edit, Search, X, Check } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { Plus, Edit, Search, X, Check, MoreHorizontal, Trash2 } from "lucide-react";
+import { formatCurrency, cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -23,7 +23,10 @@ export default function FormationsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFormation, setEditingFormation] = useState<Formation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [formationToDelete, setFormationToDelete] = useState<Formation | null>(null);
 
   // For inline level editing
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
@@ -67,6 +70,15 @@ export default function FormationsPage() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if ((e.target as Element).closest('.action-dropdown-container')) return;
+      setOpenDropdownId(null);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const openAddModal = () => {
     setEditingFormation(null);
     setFormData({
@@ -77,6 +89,7 @@ export default function FormationsPage() {
       levelCount: "",
       status: "actif"
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
@@ -84,17 +97,30 @@ export default function FormationsPage() {
     setEditingFormation(f);
     setFormData({
       name: f.name,
-      duration: f.duration,
+      duration: f.duration ? f.duration.toString() : "",
       totalCost: f.totalCost.toString(),
       hasLevels: f.hasLevels || false,
       levelCount: f.levelCount ? f.levelCount.toString() : "",
       status: f.status || "actif"
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) newErrors.name = "Veuillez renseigner le nom de la formation.";
+    if (!formData.duration || parseInt(formData.duration) <= 0) newErrors.duration = "Durée invalide.";
+    if (!formData.totalCost || parseInt(formData.totalCost) < 0) newErrors.totalCost = "Coût total invalide.";
+    if (formData.hasLevels && (!formData.levelCount || parseInt(formData.levelCount) <= 0)) newErrors.levelCount = "Nombre de niveaux invalide.";
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
     let updated;
     const levelCount = formData.hasLevels && formData.levelCount ? parseInt(formData.levelCount) : 0;
 
@@ -120,7 +146,7 @@ export default function FormationsPage() {
           return {
             ...f,
             name: formData.name,
-            duration: formData.duration,
+            duration: parseInt(formData.duration, 10),
             totalCost: parseInt(formData.totalCost),
             hasLevels: formData.hasLevels,
             levelCount: levelCount > 0 ? levelCount : undefined,
@@ -141,7 +167,7 @@ export default function FormationsPage() {
       const newFormation: Formation = {
         id: `form_${Date.now()}`,
         name: formData.name,
-        duration: formData.duration,
+        duration: parseInt(formData.duration, 10),
         totalCost: parseInt(formData.totalCost),
         hasLevels: formData.hasLevels,
         levelCount: levelCount > 0 ? levelCount : undefined,
@@ -242,14 +268,14 @@ export default function FormationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredFormations.map((f) => (
+                {filteredFormations.map((f, idx) => (
                   <React.Fragment key={f.id}>
                     <tr
                       onClick={() => setSelectedFormationId(selectedFormationId === f.id ? null : f.id)}
                       className={`hover:bg-secondary/30 transition-colors cursor-pointer ${selectedFormationId === f.id ? 'bg-secondary/20' : ''}`}
                     >
                       <td className="px-6 py-4 font-medium text-foreground">{f.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{f.duration}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{f.duration} mois</td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {f.hasLevels ? `${f.levelCount || f.levels?.length || 0} niveaux` : '-'}
                       </td>
@@ -261,15 +287,43 @@ export default function FormationsPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditModal(f);
-                          }}
-                          className="text-foreground font-medium text-sm hover:underline"
-                        >
-                          Modifier
-                        </button>
+                        <div className="relative inline-flex items-center action-dropdown-container">
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === f.id ? null : f.id);
+                            }}
+                            className="action-dropdown-trigger p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+                          {openDropdownId === f.id && (
+                            <div className={`absolute right-0 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50 ${idx >= filteredFormations.length - 2 && filteredFormations.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openEditModal(f);
+                                  setOpenDropdownId(null);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                              >
+                                <Edit className="w-4 h-4" /> Modifier
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFormationToDelete(f);
+                                  setOpenDropdownId(null);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
+                              >
+                                <Trash2 className="w-4 h-4" /> Supprimer
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
 
@@ -365,24 +419,36 @@ export default function FormationsPage() {
             <input
               type="text"
               value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              required
-              className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
-              placeholder="Ex: Anglais professionnel"
+              onChange={(e) => {
+                setFormData({ ...formData, name: e.target.value });
+                if (errors.name) setErrors({ ...errors, name: '' });
+              }}
+              className={cn(
+                "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                errors.name ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+              )}
+              placeholder="Ex: Formation Fullstack"
             />
+            {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Durée</label>
+              <label className="text-sm font-medium">Durée (mois)</label>
               <input
-                type="text"
+                type="number"
                 value={formData.duration}
-                onChange={e => setFormData({ ...formData, duration: e.target.value })}
-                required
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
-                placeholder="Ex: 9 mois"
+                onChange={(e) => {
+                  setFormData({ ...formData, duration: e.target.value });
+                  if (errors.duration) setErrors({ ...errors, duration: '' });
+                }}
+                className={cn(
+                  "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                  errors.duration ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                )}
+                placeholder="Ex: 9"
               />
+              {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
             </div>
 
             <div className="space-y-2">
@@ -390,11 +456,17 @@ export default function FormationsPage() {
               <input
                 type="number"
                 value={formData.totalCost}
-                onChange={e => setFormData({ ...formData, totalCost: e.target.value })}
-                required
+                onChange={(e) => {
+                  setFormData({ ...formData, totalCost: e.target.value });
+                  if (errors.totalCost) setErrors({ ...errors, totalCost: '' });
+                }}
                 min="0"
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+                className={cn(
+                  "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                  errors.totalCost ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                )}
               />
+              {errors.totalCost && <p className="text-xs text-red-500 mt-1">{errors.totalCost}</p>}
             </div>
           </div>
 
@@ -427,11 +499,17 @@ export default function FormationsPage() {
               <input
                 type="number"
                 value={formData.levelCount}
-                onChange={e => setFormData({ ...formData, levelCount: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, levelCount: e.target.value });
+                  if (errors.levelCount) setErrors({ ...errors, levelCount: '' });
+                }}
                 min="1"
-                required={formData.hasLevels}
-                className="w-full p-2 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+                className={cn(
+                  "w-full p-2 border rounded-md bg-background focus:outline-none focus:ring-2 transition-all text-sm",
+                  errors.levelCount ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary/50"
+                )}
               />
+              {errors.levelCount && <p className="text-xs text-red-500 mt-1">{errors.levelCount}</p>}
             </div>
           )}
 
@@ -451,6 +529,46 @@ export default function FormationsPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!formationToDelete}
+        onClose={() => setFormationToDelete(null)}
+        title="Supprimer cette formation ?"
+      >
+        <div className="space-y-6 py-2">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Vous êtes sur le point de supprimer <span className="font-semibold text-foreground">{formationToDelete?.name}</span>.
+              <br />Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
+            </p>
+          </div>
+
+          <div className="flex justify-center gap-3 pt-4">
+            <button
+              onClick={() => setFormationToDelete(null)}
+              className="px-5 py-2.5 rounded-md text-sm font-medium border border-border hover:bg-secondary transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={() => {
+                if (formationToDelete) {
+                  const updated = formations.filter(f => f.id !== formationToDelete.id);
+                  setFormations(updated);
+                  localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
+                  setFormationToDelete(null);
+                }
+              }}
+              className="px-5 py-2.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition-colors"
+            >
+              Oui, supprimer
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
