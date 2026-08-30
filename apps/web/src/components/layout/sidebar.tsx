@@ -47,7 +47,7 @@ export function Sidebar() {
   const router = useRouter();
   const { isMobileMenuOpen, closeMobileMenu, isSidebarCollapsed, toggleSidebar } = useUIStore();
   const [organization, setOrganization] = useState<Organization>(mockOrganization);
-  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, role: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, roles: string[] } | null>(null);
 
   useEffect(() => {
     const loadOrg = () => {
@@ -68,7 +68,7 @@ export function Sidebar() {
     setUserProfile({
       firstName: "Admin",
       lastName: "System",
-      role: "ADMIN"
+      roles: ["ADMIN"]
     });
   }, []);
 
@@ -272,7 +272,7 @@ export function Sidebar() {
                       {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Utilisateur'}
                     </p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      {userProfile ? (userProfile.role.charAt(0) + userProfile.role.slice(1).toLowerCase()) : 'Chargement...'}
+                      {userProfile ? (userProfile.roles.map(r => r.charAt(0) + r.slice(1).toLowerCase()).join(', ')) : 'Chargement...'}
                     </p>
                   </div>
                   <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground">

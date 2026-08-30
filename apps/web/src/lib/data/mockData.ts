@@ -1,4 +1,4 @@
-export type Role = "ADMIN" | "GESTIONNAIRE" | "COMPTABLE" | "AGENT";
+export type Role = "ADMIN" | "GESTIONNAIRE" | "COMPTABLE";
 export type UserStatus = "actif" | "inactif";
 export type StudentStatus = "en_cours" | "niveau_terminee" | "formation_terminee" | "suspendu" | "nouvel_inscrit" | "reinscrit" | "abandonne";
 export type PaymentStatus = "a_jour" | "en_retard" | "solde";
@@ -26,7 +26,7 @@ export interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: Role;
+  roles: Role[];
   centerIds: string[];
   status: UserStatus;
 }

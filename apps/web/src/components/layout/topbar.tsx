@@ -12,7 +12,7 @@ export function Topbar() {
   const pathname = usePathname();
   const isDashboard = pathname === "/";
 
-  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, role: string, avatarUrl?: string } | null>(null);
+  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, roles: string[], avatarUrl?: string } | null>(null);
 
   useEffect(() => {
     const loadUser = () => {
@@ -23,7 +23,7 @@ export function Topbar() {
         setUserProfile({
           firstName: "Admin",
           lastName: "System",
-          role: "ADMIN"
+          roles: ["ADMIN"]
         });
       }
     };

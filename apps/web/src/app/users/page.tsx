@@ -13,8 +13,7 @@ import { useUIStore } from '@/lib/store/useUIStore';
 const roleColors: Record<Role, string> = {
   "ADMIN": "bg-cyan-50 text-cyan-600",
   "GESTIONNAIRE": "bg-blue-50 text-blue-600",
-  "COMPTABLE": "bg-amber-50 text-amber-600",
-  "AGENT": "bg-slate-100 text-slate-600"
+  "COMPTABLE": "bg-amber-50 text-amber-600"
 };
 
 export default function UsersPage() {
@@ -46,7 +45,7 @@ export default function UsersPage() {
     firstName: string;
     lastName: string;
     email: string;
-    role: string;
+    roles: string[];
     status: string;
     centerIds: string[];
   }>({
@@ -54,7 +53,7 @@ export default function UsersPage() {
     firstName: '',
     lastName: '',
     email: '',
-    role: 'AGENT',
+    roles: ['GESTIONNAIRE'],
     status: 'actif',
     centerIds: [],
   });
@@ -63,7 +62,11 @@ export default function UsersPage() {
     // Load Users
     const savedUsers = localStorage.getItem('warriors_mock_users');
     if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
+      const parsed = JSON.parse(savedUsers).map((u: any) => ({
+        ...u,
+        roles: u.roles || (u.role ? [u.role] : ['GESTIONNAIRE'])
+      }));
+      setUsers(parsed);
     } else {
       setUsers(mockUsers);
       localStorage.setItem('warriors_mock_users', JSON.stringify(mockUsers));
@@ -88,7 +91,7 @@ export default function UsersPage() {
       firstName: '',
       lastName: '',
       email: '',
-      role: 'AGENT',
+      roles: ['GESTIONNAIRE'],
       status: 'actif',
       centerIds: [],
     });
@@ -103,7 +106,7 @@ export default function UsersPage() {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
-      role: user.role,
+      roles: user.roles || (user as any).role ? [(user as any).role] : ['GESTIONNAIRE'],
       status: user.status,
       centerIds: user.centerIds || [],
     });
@@ -140,7 +143,7 @@ export default function UsersPage() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        role: formData.role as Role,
+        roles: formData.roles as Role[],
         status: formData.status as UserStatus,
         centerIds: formData.centerIds
       } : u);
@@ -156,7 +159,7 @@ export default function UsersPage() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
-        role: formData.role as Role,
+        roles: formData.roles as Role[],
         status: formData.status as UserStatus,
         centerIds: formData.centerIds
       };
@@ -181,7 +184,8 @@ export default function UsersPage() {
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = (u.firstName + ' ' + u.lastName + ' ' + u.email).toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    const userRoles = u.roles ? u.roles : ((u as any).role ? [(u as any).role] : []);
+    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
     const matchesCenter = centerFilter === 'all' || u.centerIds.includes(centerFilter);
     return matchesSearch && matchesRole && matchesCenter;
   });
@@ -230,8 +234,7 @@ export default function UsersPage() {
               { label: 'Tous les rôles', value: 'all' },
               { label: 'Administrateur', value: 'ADMIN' },
               { label: 'Gestionnaire', value: 'GESTIONNAIRE' },
-              { label: 'Comptable', value: 'COMPTABLE' },
-              { label: 'Agent', value: 'AGENT' },
+              { label: 'Comptable', value: 'COMPTABLE' }
             ]}
           />
           <Select
@@ -313,10 +316,12 @@ export default function UsersPage() {
               )}
             </p>
 
-            <div className="flex gap-2 mt-3 mb-6">
-              <Badge variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${roleColors[user.role]}`}>
-                {user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()}
-              </Badge>
+            <div className="flex flex-wrap justify-center gap-1.5 mt-3 mb-6">
+              {(user.roles ? user.roles : ((user as any).role ? [(user as any).role] : [])).map((r: string) => (
+                <Badge key={r} variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${roleColors[r as Role]}`}>
+                  {r.charAt(0).toUpperCase() + r.slice(1).toLowerCase()}
+                </Badge>
+              ))}
               <Badge variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${user.status === 'actif' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                 {user.status === 'actif' ? 'Actif' : 'Inactif'}
               </Badge>
@@ -418,18 +423,58 @@ export default function UsersPage() {
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Rôle</label>
-              <Select
-                value={formData.role}
-                onChange={(val: string) => setFormData({ ...formData, role: val })}
-                options={[
-                  { label: 'Administrateur', value: 'ADMIN' },
-                  { label: 'Gestionnaire', value: 'GESTIONNAIRE' },
-                  { label: 'Comptable', value: 'COMPTABLE' },
-                  { label: 'Agent', value: 'AGENT' },
-                ]}
-              />
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground">Rôles</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, roles: ['ADMIN'] })}
+                  className={cn(
+                    "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                    formData.roles.includes('ADMIN') ? "bg-cyan-50 text-cyan-700 border-cyan-200" : "bg-background text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  Administrateur
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    let newRoles = [...formData.roles].filter(r => r !== 'ADMIN');
+                    if (newRoles.includes('GESTIONNAIRE')) {
+                      newRoles = newRoles.filter(r => r !== 'GESTIONNAIRE');
+                    } else {
+                      newRoles.push('GESTIONNAIRE');
+                    }
+                    if (newRoles.length === 0) newRoles = ['GESTIONNAIRE'];
+                    setFormData({ ...formData, roles: newRoles });
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                    formData.roles.includes('GESTIONNAIRE') ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-background text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  Gestionnaire
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    let newRoles = [...formData.roles].filter(r => r !== 'ADMIN');
+                    if (newRoles.includes('COMPTABLE')) {
+                      newRoles = newRoles.filter(r => r !== 'COMPTABLE');
+                    } else {
+                      newRoles.push('COMPTABLE');
+                    }
+                    if (newRoles.length === 0) newRoles = ['COMPTABLE'];
+                    setFormData({ ...formData, roles: newRoles });
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-md text-sm font-medium transition-colors border",
+                    formData.roles.includes('COMPTABLE') ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-background text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  Comptable
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5">
