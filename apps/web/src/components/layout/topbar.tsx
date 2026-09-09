@@ -1,9 +1,10 @@
 "use client"
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Search, Bell, Menu } from "lucide-react";
-import { mockCenters } from "@/lib/data/mockData";
+import { useCenters } from "@/lib/hooks/useCenters";
 import { Badge } from "@/components/ui/badge";
 import { useUIStore } from "@/lib/store/useUIStore";
+import { useSession } from "@/lib/hooks/useSession";
 import { usePathname } from "next/navigation";
 import { MultiSelect } from "@/components/ui/multi-select";
 
@@ -12,39 +13,11 @@ export function Topbar() {
   const pathname = usePathname();
   const isDashboard = pathname === "/";
 
-  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, roles: string[], avatarUrl?: string } | null>(null);
-
-  useEffect(() => {
-    const loadUser = () => {
-      const saved = localStorage.getItem('warriors_mock_user');
-      if (saved) {
-        setUserProfile(JSON.parse(saved));
-      } else {
-        setUserProfile({
-          firstName: "Admin",
-          lastName: "System",
-          roles: ["ADMIN"]
-        });
-      }
-    };
-    
-    loadUser(); // Initial load
-
-    const handleProfileUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail) {
-        setUserProfile(customEvent.detail);
-      } else {
-        loadUser();
-      }
-    };
-
-    window.addEventListener('user_profile_updated', handleProfileUpdate);
-    return () => window.removeEventListener('user_profile_updated', handleProfileUpdate);
-  }, []);
+  const { user: userProfile } = useSession();
+  const { centers } = useCenters();
 
   const [selectedCenters, setSelectedCenters] = useState<string[]>([]);
-  const centerOptions = mockCenters.map(c => ({ label: c.name, value: c.id }));
+  const centerOptions = centers.map(c => ({ label: c.name, value: c.id }));
 
   const isAdminView = pathname.startsWith('/centers') || pathname.startsWith('/users') || pathname.startsWith('/settings');
 

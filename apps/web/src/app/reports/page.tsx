@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Users, Trophy, AlertCircle, BookOpen, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Activity, DollarSign, PieChart as PieChartIcon, Target, Scale, Minus } from "lucide-react";
+import React, { useState } from "react";
+import { Users, Trophy, AlertCircle, BookOpen, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Activity, DollarSign, PieChart as PieChartIcon, Target, Scale, Minus, ListOrdered } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -10,8 +10,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   Legend,
   AreaChart,
   Area,
@@ -19,170 +17,57 @@ import {
   Pie,
   Cell
 } from "recharts";
-import { mockFormations, mockClasses, mockStudents, mockPayments, mockExpenses, Formation, Student, Payment, Expense } from "@/lib/data/mockData";
+import { useReportsSummary, useFormationReports, useFinanceSeries } from "@/lib/hooks/useReports";
+import { useDashboardStats } from "@/lib/hooks/useDashboardStats";
 import { DatePicker } from "@/components/ui/date-picker";
+import { KpiCardSkeleton, ChartSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { Card } from "@/components/ui/card";
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("Vue générale");
-  const [formationsData, setFormationsData] = useState<Formation[]>([]);
-  const [studentsData, setStudentsData] = useState<Student[]>([]);
-  const [paymentsData, setPaymentsData] = useState<Payment[]>([]);
-  const [expensesData, setExpensesData] = useState<Expense[]>([]);
-  const [classesData, setClassesData] = useState(mockClasses);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  useEffect(() => {
-    const savedFormations = localStorage.getItem("warriors_mock_formations");
-    const savedClasses = localStorage.getItem("warriors_mock_classes");
-    const savedStudents = localStorage.getItem("warriors_mock_students");
-    const savedPayments = localStorage.getItem("warriors_mock_payments");
-    const savedExpenses = localStorage.getItem("warriors_mock_expenses");
+  const range = { from: startDate?.toISOString(), to: endDate?.toISOString() };
+  const { summary, isLoading: isLoadingSummary } = useReportsSummary(range);
+  const { formationReports, isLoading: isLoadingFormations } = useFormationReports(range);
+  const { financeSeries, isLoading: isLoadingFinance } = useFinanceSeries(range);
+  const { stats: dashboardStats } = useDashboardStats();
+  const isLoading = isLoadingSummary || isLoadingFormations || isLoadingFinance;
 
-    setFormationsData(savedFormations ? JSON.parse(savedFormations) : mockFormations);
-    setClassesData(savedClasses ? JSON.parse(savedClasses) : mockClasses);
-    setStudentsData(savedStudents ? JSON.parse(savedStudents) : mockStudents);
-    setPaymentsData(savedPayments ? JSON.parse(savedPayments) : mockPayments);
-    setExpensesData(savedExpenses ? JSON.parse(savedExpenses) : mockExpenses);
-  }, []);
+  const totalActiveStudents = summary?.totalActiveStudents ?? 0;
+  const newStudentsThisMonth = summary?.newStudentsInRange ?? 0;
+  const totalRevenue = summary?.totalRevenueInRange ?? 0;
+  const totalExpenses = summary?.totalExpensesInRange ?? 0;
+  const resultatNet = summary?.netIncomeInRange ?? 0;
+  const resteARecouvrer = dashboardStats?.totalToCollect ?? 0;
 
-  // Compute metrics
-  const classToFormation = classesData.reduce((acc, cls) => {
-    acc[cls.id] = cls.formationId;
-    return acc;
-  }, {} as Record<string, string>);
-
-  const studentCountByFormation: Record<string, number> = {};
-  const dropoutsByFormation: Record<string, { total: number, dropouts: number }> = {};
-  const revenueByFormation: Record<string, number> = {};
-
-  formationsData.forEach(f => {
-    studentCountByFormation[f.id] = 0;
-    dropoutsByFormation[f.id] = { total: 0, dropouts: 0 };
-    revenueByFormation[f.id] = 0;
-  });
-
-  let totalActiveStudents = 0;
-  let newStudentsThisMonth = 0;
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-
-  studentsData.forEach(student => {
-    if (student.currentStatus !== 'abandonne' && student.currentStatus !== 'formation_terminee') {
-      totalActiveStudents++;
-    }
-    
-    if (student.enrollmentDate) {
-      const enrollmentDate = new Date(student.enrollmentDate);
-      if (enrollmentDate.getMonth() === currentMonth && enrollmentDate.getFullYear() === currentYear) {
-        newStudentsThisMonth++;
-      }
-    }
-    
-    const formationId = classToFormation[student.classId];
-    if (formationId) {
-      studentCountByFormation[formationId] = (studentCountByFormation[formationId] || 0) + 1;
-      
-      if (!dropoutsByFormation[formationId]) dropoutsByFormation[formationId] = { total: 0, dropouts: 0 };
-      dropoutsByFormation[formationId].total += 1;
-      if (student.currentStatus === 'abandonne') {
-        dropoutsByFormation[formationId].dropouts += 1;
-      }
-    }
-  });
-
-  let totalRevenue = 0;
-  paymentsData.forEach(payment => {
-    totalRevenue += payment.amount;
-    const student = studentsData.find(s => s.id === payment.studentId);
-    if (student) {
-      const formationId = classToFormation[student.classId];
-      if (formationId) {
-        revenueByFormation[formationId] = (revenueByFormation[formationId] || 0) + payment.amount;
-      }
-    }
-  });
-
-  let totalExpenses = 0;
-  expensesData.forEach(expense => {
-    totalExpenses += expense.amount;
-  });
-
-  const resteARecouvrer = 1250000; // Constante pour le moment, ou à calculer
-  const resultatNet = totalRevenue - totalExpenses;
-
-  // Calculate top KPI values for Formations
   let maxStudentsFormation = { name: "N/A", count: -1 };
   let minStudentsFormation = { name: "N/A", count: Infinity };
   let maxRevenueFormation = { name: "N/A", amount: -1 };
   let maxDropoutFormation = { name: "N/A", rate: -1 };
 
-  formationsData.forEach(f => {
-    const count = studentCountByFormation[f.id] || 0;
-    if (count > maxStudentsFormation.count) {
-      maxStudentsFormation = { name: f.name, count };
-    }
-    if (count < minStudentsFormation.count) {
-      minStudentsFormation = { name: f.name, count };
-    }
-
-    const rev = revenueByFormation[f.id] || 0;
-    if (rev > maxRevenueFormation.amount) {
-      maxRevenueFormation = { name: f.name, amount: rev };
-    }
-
-    const drpInfo = dropoutsByFormation[f.id] || { total: 0, dropouts: 0 };
-    const rate = drpInfo.total > 0 ? (drpInfo.dropouts / drpInfo.total) : 0;
-    if (rate > maxDropoutFormation.rate) {
-      maxDropoutFormation = { name: f.name, rate };
-    }
+  formationReports.forEach(f => {
+    if (f.studentCount > maxStudentsFormation.count) maxStudentsFormation = { name: f.name, count: f.studentCount };
+    if (f.studentCount < minStudentsFormation.count) minStudentsFormation = { name: f.name, count: f.studentCount };
+    if (f.revenueInRange > maxRevenueFormation.amount) maxRevenueFormation = { name: f.name, amount: f.revenueInRange };
+    if (f.dropoutRate > maxDropoutFormation.rate) maxDropoutFormation = { name: f.name, rate: f.dropoutRate };
   });
+  if (minStudentsFormation.count === Infinity) minStudentsFormation.count = 0;
 
-  if (minStudentsFormation.count === Infinity) {
-    minStudentsFormation.count = 0;
-  }
+  const formatCurrency = (value: number) => new Intl.NumberFormat('fr-FR').format(value) + " F CFA";
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('fr-FR').format(value) + " F CFA";
-  };
+  const barChartData = [...formationReports]
+    .map(f => ({ name: f.name, count: f.studentCount }))
+    .sort((a, b) => b.count - a.count);
 
-  // Bar Chart Data
-  const barChartData = formationsData.map(f => ({
-    name: f.name,
-    count: studentCountByFormation[f.id] || 0
-  })).sort((a, b) => b.count - a.count);
+  const rankedFormations = [...formationReports].sort((a, b) => b.studentCount - a.studentCount);
 
-  const finalBarChartData = barChartData.length > 0 && barChartData.some(d => d.count > 0) ? barChartData : [
-    { name: "Anglais Général", count: 120 },
-    { name: "Français", count: 85 },
-    { name: "Bureautique", count: 45 },
-    { name: "Comptabilité", count: 30 },
-    { name: "Développement", count: 25 },
-  ];
-
-  // Line Chart Data (Last 6 months)
-  const lineChartData = [
-    { month: "Mars", "Anglais Général": 40, "Bureautique": 10, "Français": 20 },
-    { month: "Avril", "Anglais Général": 50, "Bureautique": 15, "Français": 25 },
-    { month: "Mai", "Anglais Général": 55, "Bureautique": 12, "Français": 30 },
-    { month: "Juin", "Anglais Général": 70, "Bureautique": 20, "Français": 45 },
-    { month: "Juillet", "Anglais Général": 90, "Bureautique": 30, "Français": 60 },
-    { month: "Août", "Anglais Général": 120, "Bureautique": 45, "Français": 85 },
-  ];
-
-  // Financial Chart Data (Revenue vs Expenses)
-  const financialChartData = [
-    { month: "Mars", Revenus: 2000000, Dépenses: 800000 },
-    { month: "Avril", Revenus: 2500000, Dépenses: 900000 },
-    { month: "Mai", Revenus: 2200000, Dépenses: 1100000 },
-    { month: "Juin", Revenus: 3000000, Dépenses: 1200000 },
-    { month: "Juillet", Revenus: 3800000, Dépenses: 1500000 },
-    { month: "Août", Revenus: 4500000, Dépenses: 1300000 },
-  ];
+  const financialChartData = financeSeries.map(p => ({ month: p.label, Revenus: p.revenue, Dépenses: p.expenses }));
 
   const financialPieData = [
-    { name: "Encaissé", value: totalRevenue > 0 ? totalRevenue : 18000000 },
-    { name: "Dépenses", value: totalExpenses > 0 ? totalExpenses : 4200000 },
+    { name: "Encaissé", value: totalRevenue },
+    { name: "Dépenses", value: totalExpenses },
   ];
 
   const colors = {
@@ -241,6 +126,24 @@ export default function ReportsPage() {
         ))}
       </div>
 
+      {isLoading ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+            {Array.from({ length: 5 }).map((_, i) => <KpiCardSkeleton key={i} />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6 shadow-sm">
+              <Skeleton className="h-4 w-48 mb-6" />
+              <ChartSkeleton />
+            </Card>
+            <Card className="p-6 shadow-sm">
+              <Skeleton className="h-4 w-48 mb-6" />
+              <ChartSkeleton />
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <>
       {activeTab === "Vue générale" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
@@ -248,12 +151,7 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Étudiants actifs</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {totalActiveStudents > 0 ? totalActiveStudents : 325}
-                  </h3>
-                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +12% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{totalActiveStudents}</h3>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Users className="w-6 h-6 text-foreground" />
@@ -265,12 +163,8 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Nouveaux inscrits</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {newStudentsThisMonth}
-                  </h3>
-                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> Ce mois-ci
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{newStudentsThisMonth}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Target className="w-6 h-6 text-foreground" />
@@ -282,12 +176,7 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Formations proposées</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {formationsData.length > 0 ? formationsData.length : 5}
-                  </h3>
-                  <p className="text-sm font-medium text-muted-foreground mt-1 flex items-center">
-                    <Minus className="w-4 h-4 mr-1" /> Stable
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formationReports.length}</h3>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <BookOpen className="w-6 h-6 text-foreground" />
@@ -299,12 +188,8 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Revenu total</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {totalRevenue > 0 ? formatCurrency(totalRevenue) : "18 000 000 F CFA"}
-                  </h3>
-                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +18% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalRevenue)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Wallet className="w-6 h-6 text-foreground" />
@@ -316,12 +201,8 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Dépenses totales</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {totalExpenses > 0 ? formatCurrency(totalExpenses) : "4 200 000 F CFA"}
-                  </h3>
-                  <p className="text-sm font-medium text-rose-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +5% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalExpenses)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Activity className="w-6 h-6 text-foreground" />
@@ -338,31 +219,35 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground text-sm">Vue d'ensemble financière</h3>
-                  <p className="text-xs text-muted-foreground">Revenus et dépenses sur les 6 derniers mois</p>
+                  <p className="text-xs text-muted-foreground">Revenus et dépenses sur la période</p>
                 </div>
               </div>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={financialChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorRevenus" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={colors.emerald} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={colors.emerald} stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorDepenses" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={colors.rose} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={colors.rose} stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(val) => `${val / 1000000}M`} />
-                    <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: number) => formatCurrency(value)} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
-                    <Area type="monotone" dataKey="Revenus" stroke={colors.emerald} fillOpacity={1} fill="url(#colorRevenus)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="Dépenses" stroke={colors.rose} fillOpacity={1} fill="url(#colorDepenses)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {financialChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={financialChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorRevenus" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={colors.emerald} stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor={colors.emerald} stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="colorDepenses" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={colors.rose} stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor={colors.rose} stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(val) => `${val / 1000000}M`} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: any) => formatCurrency(value)} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                      <Area type="monotone" dataKey="Revenus" stroke={colors.emerald} fillOpacity={1} fill="url(#colorRevenus)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="Dépenses" stroke={colors.rose} fillOpacity={1} fill="url(#colorDepenses)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune donnée financière disponible</div>
+                )}
               </div>
             </div>
 
@@ -377,34 +262,38 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div className="h-[300px] w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={finalBarChartData.slice(0, 5)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="count"
-                    >
-                      {finalBarChartData.slice(0, 5).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => [`${value} étudiants`, '']}
-                    />
-                    <Legend 
-                      layout="vertical" 
-                      verticalAlign="bottom" 
-                      align="center"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {barChartData.some(d => d.count > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={barChartData.slice(0, 5)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="count"
+                      >
+                        {barChartData.slice(0, 5).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={pieColors[index % pieColors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: any) => [`${value} étudiants`, '']}
+                      />
+                      <Legend
+                        layout="vertical"
+                        verticalAlign="bottom"
+                        align="center"
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Aucun étudiant inscrit</div>
+                )}
               </div>
             </div>
           </div>
@@ -419,11 +308,9 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Plus d'étudiants</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {maxStudentsFormation.count >= 0 ? maxStudentsFormation.name : "Anglais Général"}
-                  </h3>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{maxStudentsFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
-                    {maxStudentsFormation.count >= 0 ? maxStudentsFormation.count : 120} étudiants
+                    {Math.max(0, maxStudentsFormation.count)} étudiants
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
@@ -436,11 +323,9 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Moins d'inscrits</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {minStudentsFormation.count >= 0 ? minStudentsFormation.name : "Développement Web"}
-                  </h3>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{minStudentsFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
-                    {minStudentsFormation.count >= 0 ? minStudentsFormation.count : 25} étudiants
+                    {minStudentsFormation.count} étudiants
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
@@ -453,11 +338,9 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Plus gros encaissement</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {maxRevenueFormation.amount >= 0 ? maxRevenueFormation.name : "Anglais Général"}
-                  </h3>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{maxRevenueFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
-                    {maxRevenueFormation.amount > 0 ? formatCurrency(maxRevenueFormation.amount) : "12 500 000 F CFA"}
+                    {formatCurrency(Math.max(0, maxRevenueFormation.amount))}
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
@@ -470,11 +353,9 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Turnover le plus élevé</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {maxDropoutFormation.rate >= 0 ? maxDropoutFormation.name : "Bureautique"}
-                  </h3>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{maxDropoutFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
-                    {maxDropoutFormation.rate > 0 ? Math.round(maxDropoutFormation.rate * 100) : 15}% d'abandons
+                    {Math.round(Math.max(0, maxDropoutFormation.rate) * 100)}% d'abandons
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
@@ -497,73 +378,74 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={finalBarChartData} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 10 }}
-                      angle={-30}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                      ticks={[0, 30, 60, 90, 120]}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'transparent' }}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="count" fill={colors.primary} radius={[4, 4, 0, 0]} barSize={32} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {barChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={barChartData} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9ca3af', fontSize: 10 }}
+                        angle={-30}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="count" fill={colors.primary} radius={[4, 4, 0, 0]} barSize={32} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune formation enregistrée</div>
+                )}
               </div>
             </div>
 
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <div className="flex items-center gap-2 mb-6">
                 <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-foreground" />
+                  <ListOrdered className="w-4 h-4 text-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground text-sm">Évolution des inscriptions</h3>
-                  <p className="text-xs text-muted-foreground">Top 3 formations (6 derniers mois)</p>
+                  <h3 className="font-semibold text-foreground text-sm">Classement des formations</h3>
+                  <p className="text-xs text-muted-foreground">Par effectif, sur la période</p>
                 </div>
               </div>
-              <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={lineChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="month" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                      ticks={[0, 30, 60, 90, 120]}
-                    />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Legend 
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
-                    />
-                    <Line type="monotone" dataKey="Anglais Général" stroke={colors.primary} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="Bureautique" stroke={colors.pink} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="Français" stroke={colors.blue} strokeWidth={2} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-[300px] w-full overflow-y-auto">
+                {rankedFormations.length > 0 ? (
+                  <table className="w-full text-sm text-left">
+                    <thead className="text-xs text-muted-foreground uppercase">
+                      <tr>
+                        <th className="pb-2 font-medium">#</th>
+                        <th className="pb-2 font-medium">Formation</th>
+                        <th className="pb-2 font-medium text-right">Étudiants</th>
+                        <th className="pb-2 font-medium text-right">Abandons</th>
+                        <th className="pb-2 font-medium text-right">Revenu</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {rankedFormations.map((f, idx) => (
+                        <tr key={f.formationId}>
+                          <td className="py-2 text-muted-foreground">{idx + 1}</td>
+                          <td className="py-2 font-medium text-foreground">{f.name}</td>
+                          <td className="py-2 text-right">{f.studentCount}</td>
+                          <td className="py-2 text-right text-muted-foreground">{f.dropoutCount}</td>
+                          <td className="py-2 text-right text-muted-foreground">{formatCurrency(f.revenueInRange)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune formation enregistrée</div>
+                )}
               </div>
             </div>
           </div>
@@ -577,12 +459,8 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total encaissé</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {totalRevenue > 0 ? formatCurrency(totalRevenue) : "18 000 000 F CFA"}
-                  </h3>
-                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +15% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalRevenue)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <DollarSign className="w-6 h-6 text-foreground" />
@@ -594,29 +472,21 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Dépenses</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {totalExpenses > 0 ? formatCurrency(totalExpenses) : "4 200 000 F CFA"}
-                  </h3>
-                  <p className="text-sm font-medium text-rose-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +5% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalExpenses)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Activity className="w-6 h-6 text-foreground" />
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Bénéfice net</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {resultatNet !== 0 ? formatCurrency(resultatNet) : "13 800 000 F CFA"}
-                  </h3>
-                  <p className="text-sm font-medium text-emerald-600 mt-1 flex items-center">
-                    <ArrowUpRight className="w-4 h-4 mr-1" /> +8% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(resultatNet)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Sur la période</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <Scale className="w-6 h-6 text-foreground" />
@@ -628,12 +498,8 @@ export default function ReportsPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Reste à recouvrer</p>
-                  <h3 className="text-2xl font-bold text-foreground mt-2">
-                    {formatCurrency(resteARecouvrer)}
-                  </h3>
-                  <p className="text-sm font-medium text-amber-600 mt-1 flex items-center">
-                    <ArrowDownRight className="w-4 h-4 mr-1" /> -2% ce mois
-                  </p>
+                  <h3 className="text-2xl font-bold text-foreground mt-2">{formatCurrency(resteARecouvrer)}</h3>
+                  <p className="text-sm font-medium text-muted-foreground mt-1">Toutes inscriptions</p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
                   <AlertCircle className="w-6 h-6 text-foreground" />
@@ -654,35 +520,39 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div className="h-[300px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={financialChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="month" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 12 }} 
-                      dy={10}
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#9ca3af', fontSize: 12 }}
-                      tickFormatter={(val) => `${val / 1000000}M`}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'transparent' }}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => formatCurrency(value)}
-                    />
-                    <Legend 
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
-                    />
-                    <Bar dataKey="Revenus" fill={colors.emerald} radius={[4, 4, 0, 0]} barSize={20} />
-                    <Bar dataKey="Dépenses" fill={colors.rose} radius={[4, 4, 0, 0]} barSize={20} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {financialChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={financialChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis
+                        dataKey="month"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        dy={10}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9ca3af', fontSize: 12 }}
+                        tickFormatter={(val) => `${val / 1000000}M`}
+                      />
+                      <Tooltip
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: any) => formatCurrency(value)}
+                      />
+                      <Legend
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
+                      />
+                      <Bar dataKey="Revenus" fill={colors.emerald} radius={[4, 4, 0, 0]} barSize={20} />
+                      <Bar dataKey="Dépenses" fill={colors.rose} radius={[4, 4, 0, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune donnée financière disponible</div>
+                )}
               </div>
             </div>
 
@@ -697,38 +567,44 @@ export default function ReportsPage() {
                 </div>
               </div>
               <div className="h-[300px] w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={financialPieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {financialPieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={financePieColors[index % financePieColors.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => [formatCurrency(value), '']}
-                    />
-                    <Legend 
-                      layout="vertical" 
-                      verticalAlign="bottom" 
-                      align="center"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {(totalRevenue > 0 || totalExpenses > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={financialPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {financialPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={financePieColors[index % financePieColors.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        formatter={(value: any) => [formatCurrency(value), '']}
+                      />
+                      <Legend
+                        layout="vertical"
+                        verticalAlign="bottom"
+                        align="center"
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-sm text-muted-foreground">Aucune donnée financière disponible</div>
+                )}
               </div>
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

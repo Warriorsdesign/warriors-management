@@ -18,62 +18,48 @@ import {
   LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState, useEffect } from "react";
 import { useUIStore } from "@/lib/store/useUIStore";
-import { mockOrganization, Organization } from "@/lib/data/mockData";
-
-import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/hooks/useSession";
+import { PERMISSIONS } from "@/lib/auth/roles";
+import { apiFetch } from "@/lib/api/client";
+import { mutate as globalMutate } from "swr";
 
 const gestionItems = [
-  { name: "Étudiants", href: "/students", icon: GraduationCap },
-  { name: "Formations", href: "/formations", icon: Layers },
-  { name: "Classes", href: "/classes", icon: Users },
+  { name: "Étudiants", href: "/students", icon: GraduationCap, resource: "students" as const },
+  { name: "Formations", href: "/formations", icon: Layers, resource: "formations" as const },
+  { name: "Classes", href: "/classes", icon: Users, resource: "classes" as const },
 ];
 
 const financesItems = [
-  { name: "Paiements", href: "/payments", icon: CreditCard },
-  { name: "Dépenses", href: "/expenses", icon: Receipt },
-  { name: "Rapports", href: "/reports", icon: BarChart3 },
+  { name: "Paiements", href: "/payments", icon: CreditCard, resource: "payments" as const },
+  { name: "Dépenses", href: "/expenses", icon: Receipt, resource: "expenses" as const },
+  { name: "Rapports", href: "/reports", icon: BarChart3, resource: "dashboard" as const },
 ];
 
 const adminItems = [
-  { name: "Centres", href: "/centers", icon: Building },
-  { name: "Utilisateurs", href: "/users", icon: UsersIcon },
-  { name: "Paramètres", href: "/settings", icon: Settings },
+  { name: "Centres", href: "/centers", icon: Building, resource: "centers" as const },
+  { name: "Utilisateurs", href: "/users", icon: UsersIcon, resource: "users" as const },
+  { name: "Paramètres", href: "/settings", icon: Settings, resource: null },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { isMobileMenuOpen, closeMobileMenu, isSidebarCollapsed, toggleSidebar } = useUIStore();
-  const [organization, setOrganization] = useState<Organization>(mockOrganization);
-  const [userProfile, setUserProfile] = useState<{ firstName: string, lastName: string, roles: string[] } | null>(null);
+  const { organization, roles } = useSession();
 
-  useEffect(() => {
-    const loadOrg = () => {
-      const saved = localStorage.getItem('warriors_mock_organization');
-      if (saved) {
-        setOrganization(JSON.parse(saved));
-      }
-    };
-
-    loadOrg(); // Initial load
-
-    window.addEventListener('organization_updated', loadOrg);
-    return () => window.removeEventListener('organization_updated', loadOrg);
-  }, []);
-
-  useEffect(() => {
-    // Mock user profile since Supabase is removed
-    setUserProfile({
-      firstName: "Admin",
-      lastName: "System",
-      roles: ["ADMIN"]
-    });
-  }, []);
+  const canRead = (resource: keyof typeof PERMISSIONS | null) => {
+    if (!resource) return true;
+    const allowed = PERMISSIONS[resource].read;
+    return roles.some((r) => (allowed as readonly string[]).includes(r));
+  };
 
   const handleLogout = async () => {
-    window.location.href = "/login";
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      await globalMutate(() => true, undefined, { revalidate: false });
+      window.location.href = "/login";
+    }
   };
 
   // Compute initials for logo fallback
@@ -115,13 +101,13 @@ export function Sidebar() {
           {/* Brand Header */}
           <div className={cn("h-16 flex items-center border-b border-border", isSidebarCollapsed ? "justify-center px-0" : "px-6")}>
             <div className={cn("flex items-center overflow-hidden", isSidebarCollapsed ? "justify-center" : "gap-3 w-full")}>
-              {organization.logoUrl ? (
+              {organization?.logoUrl ? (
                 <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-white">
                   <img key={organization.logoUrl} src={organization.logoUrl} alt="Logo" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 </div>
               ) : (
                 <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold text-xs flex-shrink-0">
-                  {getInitials(organization.name)}
+                  {getInitials(organization?.name)}
                 </div>
               )}
               {!isSidebarCollapsed && (
@@ -170,7 +156,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {gestionItems.map((item) => {
+                {gestionItems.filter((item) => canRead(item.resource)).map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -202,7 +188,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {financesItems.map((item) => {
+                {financesItems.filter((item) => canRead(item.resource)).map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -234,7 +220,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {adminItems.map((item) => {
+                {adminItems.filter((item) => canRead(item.resource)).map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -259,28 +245,19 @@ export function Sidebar() {
             </div>
           </div>
 
-          {/* User Profile */}
-          <div className={cn("p-4 border-t border-border mt-auto", isSidebarCollapsed && "flex flex-col items-center px-2")}>
-            <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "gap-3 px-2")}>
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-sm flex-shrink-0">
-                {userProfile ? `${userProfile.firstName.charAt(0)}${userProfile.lastName.charAt(0)}` : 'U'}
-              </div>
-              {!isSidebarCollapsed && (
-                <>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-bold truncate text-foreground leading-tight">
-                      {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Utilisateur'}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {userProfile ? (userProfile.roles.map(r => r.charAt(0) + r.slice(1).toLowerCase()).join(', ')) : 'Chargement...'}
-                    </p>
-                  </div>
-                  <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </>
+          {/* Déconnexion */}
+          <div className={cn("p-4 border-t border-border mt-auto", isSidebarCollapsed && "flex justify-center px-2")}>
+            <button
+              onClick={handleLogout}
+              title="Déconnexion"
+              className={cn(
+                "flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors",
+                isSidebarCollapsed ? "w-10 h-10 justify-center" : "w-full px-3 py-2"
               )}
-            </div>
+            >
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              {!isSidebarCollapsed && <span>Déconnexion</span>}
+            </button>
           </div>
         </div>
       </aside>

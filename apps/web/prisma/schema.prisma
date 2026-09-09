@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  logoUrl   String?
+  email     String?
+  phone     String?
+  address   String?
+  
+  centers   Center[]
+  users     User[]
+  formations Formation[]
+  classes   ClassGroup[]
+  students  Student[]
+  payments  Payment[]
+  expenses  Expense[]
+  schedules PaymentSchedule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Center {
+  id             String       @id @default(uuid())
+  name           String
+  address        String?
+  status         String       @default("actif")
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  classes        ClassGroup[]
+  
+  users          User[]       @relation("CenterUsers")
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model User {
+  id             String       @id @default(uuid())
+  matricule      String?
+  firstName      String
+  lastName       String
+  email          String       @unique
+  passwordHash   String
+  avatarUrl      String?
+  roles          String[]     // ["ADMIN", "GESTIONNAIRE", "COMPTABLE"]
+  status         String       @default("actif")
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  centers        Center[]     @relation("CenterUsers")
+
+  payments       Payment[]
+  expenses       Expense[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Formation {
+  id             String       @id @default(uuid())
+  name           String
+  duration       Int
+  hasLevels      Boolean      @default(false)
+  levelCount     Int?
+  levels         Json?
+  totalCost      Float
+  status         String       @default("actif")
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  classes        ClassGroup[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model ClassGroup {
+  id             String       @id @default(uuid())
+  name           String
+  status         String       @default("ouverte")
+  capacity       Int
+  startDate      DateTime?
+  endDate        DateTime?
+
+  formationId    String
+  formation      Formation    @relation(fields: [formationId], references: [id], onDelete: Cascade)
+  
+  centerId       String
+  center         Center       @relation(fields: [centerId], references: [id], onDelete: Cascade)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  students       Student[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Student {
+  id              String       @id @default(uuid())
+  matricule       String
+  firstName       String
+  lastName        String
+  contact         String
+  email           String?
+  gender          String
+  currentStatus   String       @default("en_cours")
+  currentLevel    String?
+  enrollmentDate  DateTime     @default(now())
+  progressionLogs Json?
+
+  classId         String
+  classGroup      ClassGroup   @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  payments        Payment[]
+  schedules       PaymentSchedule[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([matricule, organizationId])
+}
+
+model PaymentSchedule {
+  id                  String       @id @default(uuid())
+  totalAmount         Float
+  paidAmount          Float
+  remainingAmount     Float
+  status              String       @default("en_retard")
+  registrationFee     Float        @default(0)
+  installmentsCount   Int          @default(0)
+  installmentInterval String       @default("1_mois")
+  installments        Json?
+  
+  studentId       String
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Payment {
+  id             String       @id @default(uuid())
+  amount         Float
+  date           DateTime     @default(now())
+  method         String
+  motif          String?
+  reference      String?
+
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  recordedById   String
+  recordedBy     User         @relation(fields: [recordedById], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Expense {
+  id             String       @id @default(uuid())
+  title          String
+  category       String
+  amount         Float
+  date           DateTime     @default(now())
+  description    String?
+
+  recordedById   String
+  recordedBy     User         @relation(fields: [recordedById], references: [id])
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}

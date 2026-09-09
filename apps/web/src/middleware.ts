@@ -1,74 +1,74 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyToken } from './lib/auth/jwt';
+
+// Define paths that don't require authentication
+const publicPaths = ['/login', '/api/auth/login'];
 
 export async function middleware(request: NextRequest) {
-  // If Supabase environment variables are missing (e.g. on Vercel without config),
-  // we bypass the authentication check to avoid crashing the app.
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return NextResponse.next()
+  const { pathname } = request.nextUrl;
+
+  // Static files and internal Next.js paths are public
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.match(/\.(png|jpg|jpeg|svg|ico)$/)
+  ) {
+    return NextResponse.next();
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  // Allow unauthenticated access to public paths
+  if (publicPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // Get the token from cookies
+  const token = request.cookies.get('auth_token')?.value;
+
+  if (!token) {
+    // No token, redirect to login for page requests, return 401 for API requests
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-            supabaseResponse = NextResponse.next({
-              request,
-            })
-            cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options)
-            )
-          },
-        },
-      }
-    )
+    // Verify token
+    const payload = await verifyToken(token);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // Clone the request headers and append the orgId so API routes can use it
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-org-id', payload.orgId);
+    requestHeaders.set('x-user-id', payload.userId);
+    requestHeaders.set('x-user-roles', JSON.stringify(payload.roles ?? []));
 
-    const isLoginPage = request.nextUrl.pathname.startsWith('/login')
-
-    // Redirect to login if unauthenticated and not on the login page
-    if (!user && !isLoginPage) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    // Redirect to dashboard if authenticated and on the login page
-    if (user && isLoginPage) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
-    }
+    // Proceed with the request, passing the custom headers
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   } catch (error) {
-    console.error('Middleware error:', error)
+    // Token is invalid or expired
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const loginUrl = new URL('/login', request.url);
+    return NextResponse.redirect(loginUrl);
   }
-
-  return supabaseResponse
 }
 
 export const config = {
+  // Run middleware on all routes
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
-}
+};

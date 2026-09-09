@@ -1,32 +1,37 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Plus, Edit, Search, X, Check, MoreHorizontal, Trash2 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
-import {
-  mockFormations, Formation,
-  mockClasses, ClassGroup,
-  mockCenters, Center,
-  mockStudents, Student
-} from "@/lib/data/mockData";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { useFormations, createFormation, updateFormation, deleteFormation, renameFormationLevel } from "@/lib/hooks/useFormations";
+import { useClasses } from "@/lib/hooks/useClasses";
+import { useCenters } from "@/lib/hooks/useCenters";
+import { useStudents } from "@/lib/hooks/useStudents";
+import { useCan } from "@/lib/hooks/useSession";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { ApiClientError } from "@/lib/api/client";
+import { useUIStore } from "@/lib/store/useUIStore";
+import type { FormationDTO } from "@/lib/api/types";
 
 export default function FormationsPage() {
-  const [formations, setFormations] = useState<Formation[]>([]);
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [centers, setCenters] = useState<Center[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingFormation, setEditingFormation] = useState<Formation | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery);
+  const { formations, isLoading } = useFormations(debouncedSearch);
+  const { classes } = useClasses();
+  const { centers } = useCenters();
+  const canWrite = useCan("formations", "write");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFormation, setEditingFormation] = useState<FormationDTO | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedFormationId, setSelectedFormationId] = useState<string | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [formationToDelete, setFormationToDelete] = useState<Formation | null>(null);
+  const [formationToDelete, setFormationToDelete] = useState<FormationDTO | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // For inline level editing
   const [editingLevelId, setEditingLevelId] = useState<string | null>(null);
@@ -41,36 +46,13 @@ export default function FormationsPage() {
     status: "actif"
   });
 
-  useEffect(() => {
-    try {
-      const storedFormations = localStorage.getItem('warriors_mock_formations');
-      if (storedFormations) {
-        setFormations(JSON.parse(storedFormations));
-      } else {
-        setFormations(mockFormations);
-        localStorage.setItem('warriors_mock_formations', JSON.stringify(mockFormations));
-      }
+  // Effectifs de la formation dépliée, chargés uniquement à la demande (évite de charger
+  // tous les étudiants de l'organisation au premier rendu de la page).
+  const { data: expandedStudents } = useStudents(
+    selectedFormationId ? { formationId: [selectedFormationId], pageSize: 100 } : null
+  );
 
-      const storedClasses = localStorage.getItem('warriors_mock_classes');
-      if (storedClasses) setClasses(JSON.parse(storedClasses));
-      else setClasses(mockClasses);
-
-      const storedCenters = localStorage.getItem('warriors_mock_centers');
-      if (storedCenters) setCenters(JSON.parse(storedCenters));
-      else setCenters(mockCenters);
-
-      const storedStudents = localStorage.getItem('warriors_mock_students');
-      if (storedStudents) setStudents(JSON.parse(storedStudents));
-      else setStudents(mockStudents);
-
-    } catch (e) {
-      console.error("Failed to load local data", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
+  React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if ((e.target as Element).closest('.action-dropdown-container')) return;
       setOpenDropdownId(null);
@@ -93,7 +75,7 @@ export default function FormationsPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (f: Formation) => {
+  const openEditModal = (f: FormationDTO) => {
     setEditingFormation(f);
     setFormData({
       name: f.name,
@@ -107,99 +89,72 @@ export default function FormationsPage() {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = "Veuillez renseigner le nom de la formation.";
     if (!formData.duration || parseInt(formData.duration) <= 0) newErrors.duration = "Durée invalide.";
     if (!formData.totalCost || parseInt(formData.totalCost) < 0) newErrors.totalCost = "Coût total invalide.";
     if (formData.hasLevels && (!formData.levelCount || parseInt(formData.levelCount) <= 0)) newErrors.levelCount = "Nombre de niveaux invalide.";
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-    
-    let updated;
-    const levelCount = formData.hasLevels && formData.levelCount ? parseInt(formData.levelCount) : 0;
 
-    if (editingFormation) {
-      updated = formations.map(f => {
-        if (f.id === editingFormation.id) {
-          let newLevels = f.levels || [];
-          if (formData.hasLevels && levelCount > 0) {
-            const updatedLevels = [];
-            for (let i = 1; i <= levelCount; i++) {
-              const existing = newLevels.find(l => l.id === `lvl_${i}`);
-              if (existing) {
-                updatedLevels.push(existing);
-              } else {
-                updatedLevels.push({ id: `lvl_${i}`, name: `Niveau ${i}` });
-              }
-            }
-            newLevels = updatedLevels;
-          } else {
-            newLevels = [];
-          }
+    const levelCount = formData.hasLevels && formData.levelCount ? parseInt(formData.levelCount) : undefined;
 
-          return {
-            ...f,
-            name: formData.name,
-            duration: parseInt(formData.duration, 10),
-            totalCost: parseInt(formData.totalCost),
-            hasLevels: formData.hasLevels,
-            levelCount: levelCount > 0 ? levelCount : undefined,
-            levels: newLevels,
-            status: formData.status as "actif" | "inactif"
-          };
-        }
-        return f;
-      });
-    } else {
-      const initialLevels: { id: string, name: string }[] = [];
-      if (formData.hasLevels && levelCount > 0) {
-        for (let i = 1; i <= levelCount; i++) {
-          initialLevels.push({ id: `lvl_${i}`, name: `Niveau ${i}` });
-        }
-      }
-
-      const newFormation: Formation = {
-        id: `form_${Date.now()}`,
+    setIsSubmitting(true);
+    try {
+      const payload = {
         name: formData.name,
         duration: parseInt(formData.duration, 10),
-        totalCost: parseInt(formData.totalCost),
+        totalCost: parseInt(formData.totalCost, 10),
         hasLevels: formData.hasLevels,
-        levelCount: levelCount > 0 ? levelCount : undefined,
-        levels: initialLevels,
-        status: formData.status as "actif" | "inactif"
+        levelCount,
+        status: formData.status as "actif" | "inactif",
       };
-      updated = [newFormation, ...formations];
-    }
-    setFormations(updated);
-    localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
-    setIsModalOpen(false);
-  };
-
-  const saveLevelName = (formationId: string, levelId: string) => {
-    if (!editingLevelName.trim()) return;
-    const updated = formations.map(f => {
-      if (f.id === formationId) {
-        const updatedLevels = (f.levels || []).map(l =>
-          l.id === levelId ? { ...l, name: editingLevelName } : l
-        );
-        return { ...f, levels: updatedLevels };
+      if (editingFormation) {
+        await updateFormation(editingFormation.id, payload);
+        useUIStore.getState().showToast("Formation modifiée avec succès.", "success");
+      } else {
+        await createFormation(payload);
+        useUIStore.getState().showToast("Formation créée avec succès.", "success");
       }
-      return f;
-    });
-    setFormations(updated);
-    localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
-    setEditingLevelId(null);
+      setIsModalOpen(false);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const filteredFormations = formations.filter(f =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const saveLevelName = async (formationId: string, levelId: string) => {
+    if (!editingLevelName.trim()) return;
+    try {
+      await renameFormationLevel(formationId, levelId, editingLevelName);
+      setEditingLevelId(null);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!formationToDelete) return;
+    try {
+      await deleteFormation(formationToDelete.id);
+      useUIStore.getState().showToast("Formation supprimée avec succès.", "success");
+      setFormationToDelete(null);
+    } catch (err) {
+      if (err instanceof ApiClientError && err.code === 'FORMATION_HAS_CLASSES') {
+        useUIStore.getState().showToast("Impossible de supprimer : des classes utilisent encore cette formation.", "error");
+      } else {
+        useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+      }
+      setFormationToDelete(null);
+    }
+  };
 
   const getCentersForFormation = (formationId: string) => {
     const formationClasses = classes.filter(c => c.formationId === formationId);
@@ -215,13 +170,15 @@ export default function FormationsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Formations</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez le catalogue des formations proposées et leurs niveaux.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Créer une formation
-        </button>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Créer une formation
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
@@ -246,9 +203,7 @@ export default function FormationsPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Chargement...</div>
-        ) : formations.length === 0 ? (
+        {!isLoading && formations.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucune formation</h3>
             <p className="text-sm text-muted-foreground">Il n'y a actuellement aucune formation enregistrée.</p>
@@ -264,11 +219,11 @@ export default function FormationsPage() {
                   <th className="px-6 py-4 font-medium">Frais</th>
                   <th className="px-6 py-4 font-medium">Centres</th>
                   <th className="px-6 py-4 font-medium">Statut</th>
-                  <th className="px-6 py-4 font-medium text-right"></th>
+                  {canWrite && <th className="px-6 py-4 font-medium text-right"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredFormations.map((f, idx) => (
+                {isLoading ? <TableSkeleton rows={5} columns={canWrite ? 7 : 6} /> : formations.map((f, idx) => (
                   <React.Fragment key={f.id}>
                     <tr
                       onClick={() => setSelectedFormationId(selectedFormationId === f.id ? null : f.id)}
@@ -286,45 +241,47 @@ export default function FormationsPage() {
                           {f.status === 'inactif' ? 'Inactif' : 'Actif'}
                         </Badge>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="relative inline-flex items-center action-dropdown-container">
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setOpenDropdownId(openDropdownId === f.id ? null : f.id);
-                            }}
-                            className="action-dropdown-trigger p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <MoreHorizontal className="w-5 h-5" />
-                          </button>
-                          {openDropdownId === f.id && (
-                            <div className={`absolute right-0 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50 ${idx >= filteredFormations.length - 2 && filteredFormations.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openEditModal(f);
-                                  setOpenDropdownId(null);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
-                              >
-                                <Edit className="w-4 h-4" /> Modifier
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setFormationToDelete(f);
-                                  setOpenDropdownId(null);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
-                              >
-                                <Trash2 className="w-4 h-4" /> Supprimer
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                      {canWrite && (
+                        <td className="px-6 py-4 text-right">
+                          <div className="relative inline-flex items-center action-dropdown-container">
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setOpenDropdownId(openDropdownId === f.id ? null : f.id);
+                              }}
+                              className="action-dropdown-trigger p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <MoreHorizontal className="w-5 h-5" />
+                            </button>
+                            {openDropdownId === f.id && (
+                              <div className={`absolute right-0 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50 ${idx >= formations.length - 2 && formations.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openEditModal(f);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                                >
+                                  <Edit className="w-4 h-4" /> Modifier
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFormationToDelete(f);
+                                    setOpenDropdownId(null);
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
+                                >
+                                  <Trash2 className="w-4 h-4" /> Supprimer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
 
                     {/* Inline Expandable Levels Panel */}
@@ -338,10 +295,9 @@ export default function FormationsPage() {
                               </h3>
                               <div className="space-y-0">
                                 {f.levels.map((level) => {
-                                  const enrolledCount = students.filter(s => {
-                                    const c = classes.find(cls => cls.id === s.classId);
-                                    return c?.formationId === f.id && s.currentLevel === level.id;
-                                  }).length;
+                                  const enrolledCount = (expandedStudents ?? []).filter(
+                                    s => s.currentLevel === level.id
+                                  ).length;
 
                                   return (
                                     <div key={level.id} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0 group">
@@ -375,16 +331,18 @@ export default function FormationsPage() {
                                         ) : (
                                           <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium text-foreground">{level.name}</span>
-                                            <button
-                                              onClick={() => {
-                                                setEditingLevelId(level.id);
-                                                setEditingLevelName(level.name);
-                                              }}
-                                              className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-primary transition-opacity"
-                                              title="Modifier le nom du niveau"
-                                            >
-                                              <Edit className="w-3.5 h-3.5" />
-                                            </button>
+                                            {canWrite && (
+                                              <button
+                                                onClick={() => {
+                                                  setEditingLevelId(level.id);
+                                                  setEditingLevelName(level.name);
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-primary transition-opacity"
+                                                title="Modifier le nom du niveau"
+                                              >
+                                                <Edit className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                       </div>
@@ -410,7 +368,7 @@ export default function FormationsPage() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingFormation ? "Éditer la formation" : "Créer une formation"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
@@ -517,15 +475,17 @@ export default function FormationsPage() {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {editingFormation ? "Enregistrer" : "Créer"}
+              {isSubmitting ? "Enregistrement..." : (editingFormation ? "Enregistrer" : "Créer")}
             </button>
           </div>
         </form>
@@ -555,14 +515,7 @@ export default function FormationsPage() {
               Annuler
             </button>
             <button
-              onClick={() => {
-                if (formationToDelete) {
-                  const updated = formations.filter(f => f.id !== formationToDelete.id);
-                  setFormations(updated);
-                  localStorage.setItem('warriors_mock_formations', JSON.stringify(updated));
-                  setFormationToDelete(null);
-                }
-              }}
+              onClick={handleDelete}
               className="px-5 py-2.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition-colors"
             >
               Oui, supprimer
@@ -573,4 +526,3 @@ export default function FormationsPage() {
     </div>
   );
 }
-

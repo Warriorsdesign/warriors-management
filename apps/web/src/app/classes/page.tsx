@@ -1,63 +1,42 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
-import { mockClasses, mockFormations, ClassGroup, Formation, getComputedClassStatus, mockStudents } from "@/lib/data/mockData";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { useClasses, createClass, updateClass, deleteClass } from "@/lib/hooks/useClasses";
+import { useFormations } from "@/lib/hooks/useFormations";
+import { useCenters } from "@/lib/hooks/useCenters";
+import { useCan } from "@/lib/hooks/useSession";
+import { ApiClientError } from "@/lib/api/client";
+import { useUIStore } from "@/lib/store/useUIStore";
+import type { ClassDTO } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [formations, setFormations] = useState<Formation[]>([]);
-  const [studentsCountMap, setStudentsCountMap] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
+  const { classes, isLoading } = useClasses();
+  const { formations } = useFormations();
+  const { centers } = useCenters();
+  const canWrite = useCan("classes", "write");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
-  const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
+  const [editingClass, setEditingClass] = useState<ClassDTO | null>(null);
+  const [classToDelete, setClassToDelete] = useState<ClassDTO | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     formationId: "",
-    centerId: "center_1",
+    centerId: "",
     capacity: "30",
   });
 
-  useEffect(() => {
-    try {
-      // Load formations
-      const storedFormations = localStorage.getItem('warriors_mock_formations');
-      const loadedFormations = storedFormations ? JSON.parse(storedFormations) : mockFormations;
-      setFormations(loadedFormations);
-
-      // Load classes
-      const storedClasses = localStorage.getItem('warriors_mock_classes');
-      const loadedClasses = storedClasses ? JSON.parse(storedClasses) : mockClasses;
-      setClasses(loadedClasses);
-
-      // Load students to compute capacity properly
-      const storedStudents = localStorage.getItem('warriors_mock_students');
-      const loadedStudents = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-
-      const counts: Record<string, number> = {};
-      loadedClasses.forEach((c: ClassGroup) => counts[c.id] = 0);
-      loadedStudents.forEach((s: any) => {
-        if (s.classId && counts[s.classId] !== undefined) {
-          counts[s.classId] += 1;
-        }
-      });
-      setStudentsCountMap(counts);
-
-    } catch (e) {
-      console.error("Failed to load local data", e);
-    } finally {
-      setLoading(false);
-    }
-
+  React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if ((e.target as Element).closest('.action-dropdown-container')) return;
       setOpenDropdownId(null);
@@ -71,14 +50,14 @@ export default function ClassesPage() {
     setFormData({
       name: "",
       formationId: formations.length > 0 ? formations[0].id : "",
-      centerId: "center_1",
+      centerId: centers.length > 0 ? centers[0].id : "",
       capacity: "30",
     });
     setErrors({});
     setIsModalOpen(true);
   };
 
-  const openEditModal = (c: ClassGroup) => {
+  const openEditModal = (c: ClassDTO) => {
     setEditingClass(c);
     setFormData({
       name: c.name,
@@ -90,49 +69,53 @@ export default function ClassesPage() {
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = "Veuillez renseigner le nom de la classe.";
     if (!formData.formationId) newErrors.formationId = "Veuillez sélectionner une formation.";
+    if (!formData.centerId) newErrors.centerId = "Veuillez sélectionner un centre.";
     if (!formData.capacity || parseInt(formData.capacity) <= 0) newErrors.capacity = "Capacité invalide.";
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-    
-    let updated;
-    if (editingClass) {
-      updated = classes.map(c => c.id === editingClass.id ? {
-        ...c,
-        name: formData.name,
-        formationId: formData.formationId,
-        centerId: formData.centerId,
-        capacity: parseInt(formData.capacity),
-      } : c);
-    } else {
-      const newClass: ClassGroup = {
-        id: `class_${Date.now()}`,
-        name: formData.name,
-        formationId: formData.formationId,
-        centerId: formData.centerId,
-        status: 'ouverte',
-        capacity: parseInt(formData.capacity),
-      };
-      updated = [newClass, ...classes];
+
+    setIsSubmitting(true);
+    try {
+      if (editingClass) {
+        await updateClass(editingClass.id, {
+          name: formData.name,
+          capacity: parseInt(formData.capacity, 10),
+        });
+        useUIStore.getState().showToast("Classe modifiée avec succès.", "success");
+      } else {
+        await createClass({
+          name: formData.name,
+          formationId: formData.formationId,
+          centerId: formData.centerId,
+          capacity: parseInt(formData.capacity, 10),
+        });
+        useUIStore.getState().showToast("Classe créée avec succès.", "success");
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-    setClasses(updated);
-    localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
-    setIsModalOpen(false);
   };
 
-  const handleDelete = () => {
-    if (classToDelete) {
-      const updated = classes.filter(c => c.id !== classToDelete.id);
-      setClasses(updated);
-      localStorage.setItem('warriors_mock_classes', JSON.stringify(updated));
+  const handleDelete = async () => {
+    if (!classToDelete) return;
+    try {
+      await deleteClass(classToDelete.id);
+      useUIStore.getState().showToast("Classe supprimée avec succès.", "success");
+      setClassToDelete(null);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
       setClassToDelete(null);
     }
   };
@@ -143,6 +126,7 @@ export default function ClassesPage() {
   };
 
   const formationOptions = formations.map(f => ({ label: f.name, value: f.id }));
+  const centerOptions = centers.map(c => ({ label: c.name, value: c.id }));
 
   const filteredClasses = classes.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -155,13 +139,15 @@ export default function ClassesPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Classes</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les cohortes et classes.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nouvelle classe
-        </button>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvelle classe
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
@@ -186,9 +172,7 @@ export default function ClassesPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Chargement...</div>
-        ) : classes.length === 0 ? (
+        {!isLoading && classes.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucune classe</h3>
             <p className="text-sm text-muted-foreground">Il n'y a actuellement aucune classe enregistrée.</p>
@@ -202,29 +186,28 @@ export default function ClassesPage() {
                   <th className="px-6 py-3 font-medium">Formation</th>
                   <th className="px-6 py-3 font-medium">Statut</th>
                   <th className="px-6 py-3 font-medium text-right">Étudiants</th>
-                  <th className="px-6 py-3 font-medium w-16"></th>
+                  {canWrite && <th className="px-6 py-3 font-medium w-16"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredClasses.map((c) => {
-                  const enrolled = studentsCountMap[c.id] || 0;
-                  const computedStatus = getComputedClassStatus(c, enrolled);
-
-                  return (
-                    <tr key={c.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="px-6 py-4 font-medium text-foreground">{c.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{getFormationName(c.formationId)}</td>
-                      <td className="px-6 py-4">
-                        {computedStatus === 'ouverte' ? (
-                          <Badge variant="success" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Ouverte</Badge>
-                        ) : (
-                          <Badge variant="destructive" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-destructive mr-1.5"></span>Complète</Badge>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="font-medium text-foreground">{enrolled}</span>
-                        <span className="text-muted-foreground"> / {c.capacity}</span>
-                      </td>
+                {isLoading ? <TableSkeleton rows={5} columns={canWrite ? 5 : 4} /> : filteredClasses.map((c) => (
+                  <tr key={c.id} className="hover:bg-secondary/20 transition-colors">
+                    <td className="px-6 py-4 font-medium text-foreground">{c.name}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{getFormationName(c.formationId)}</td>
+                    <td className="px-6 py-4">
+                      {c.status === 'ouverte' ? (
+                        <Badge variant="success" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Ouverte</Badge>
+                      ) : c.status === 'cloturee' ? (
+                        <Badge variant="outline" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.5"></span>Clôturée</Badge>
+                      ) : (
+                        <Badge variant="destructive" className="px-2 py-0.5 text-[11px] whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-destructive mr-1.5"></span>Complète</Badge>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="font-medium text-foreground">{c.enrolledCount}</span>
+                      <span className="text-muted-foreground"> / {c.capacity}</span>
+                    </td>
+                    {canWrite && (
                       <td className="px-6 py-4 text-right relative action-dropdown-container">
                         <button
                           onClick={(e) => {
@@ -259,9 +242,9 @@ export default function ClassesPage() {
                           </div>
                         )}
                       </td>
-                    </tr>
-                  );
-                })}
+                    )}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -270,7 +253,7 @@ export default function ClassesPage() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingClass ? "Modifier la classe" : "Créer une nouvelle classe"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 pt-2">
@@ -302,9 +285,26 @@ export default function ClassesPage() {
                 if (errors.formationId) setErrors({ ...errors, formationId: '' });
               }}
               placeholder="Sélectionner une formation"
+              disabled={!!editingClass}
               className={errors.formationId ? "border-red-500 animate-shake" : ""}
             />
             {errors.formationId && <p className="text-xs text-red-500">{errors.formationId}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Centre</label>
+            <Select
+              options={centerOptions}
+              value={formData.centerId}
+              onChange={(val) => {
+                setFormData({ ...formData, centerId: val });
+                if (errors.centerId) setErrors({ ...errors, centerId: '' });
+              }}
+              placeholder="Sélectionner un centre"
+              disabled={!!editingClass}
+              className={errors.centerId ? "border-red-500 animate-shake" : ""}
+            />
+            {errors.centerId && <p className="text-xs text-red-500">{errors.centerId}</p>}
           </div>
 
           <div className="space-y-2">
@@ -325,21 +325,21 @@ export default function ClassesPage() {
             {errors.capacity && <p className="text-xs text-red-500 mt-1">{errors.capacity}</p>}
           </div>
 
-
-
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {editingClass ? "Enregistrer" : "Créer la classe"}
+              {isSubmitting ? "Enregistrement..." : (editingClass ? "Enregistrer" : "Créer la classe")}
             </button>
           </div>
         </form>

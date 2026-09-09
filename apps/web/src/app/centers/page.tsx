@@ -1,21 +1,25 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { mockCenters, Center } from "@/lib/data/mockData";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { useCenters, createCenter, updateCenter, deleteCenter } from "@/lib/hooks/useCenters";
+import { useCan } from "@/lib/hooks/useSession";
+import { ApiClientError } from "@/lib/api/client";
+import type { CenterDTO } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { Select } from "@/components/ui/select";
 
 export default function CentersPage() {
-  const [centers, setCenters] = useState<Center[]>([]);
-  const [loading, setLoading] = useState(true);
-  
+  const { centers, isLoading } = useCenters();
+  const canWrite = useCan("centers", "write");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingCenter, setEditingCenter] = useState<Center | null>(null);
-  
+  const [editingCenter, setEditingCenter] = useState<CenterDTO | null>(null);
+
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -23,22 +27,6 @@ export default function CentersPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('warriors_mock_centers');
-      if (stored) {
-        setCenters(JSON.parse(stored));
-      } else {
-        setCenters(mockCenters);
-        localStorage.setItem('warriors_mock_centers', JSON.stringify(mockCenters));
-      }
-    } catch (e) {
-      console.error("Failed to load local data", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const openAddModal = () => {
     setEditingCenter(null);
@@ -51,7 +39,7 @@ export default function CentersPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (center: Center) => {
+  const openEditModal = (center: CenterDTO) => {
     setEditingCenter(center);
     setFormData({
       name: center.name,
@@ -62,71 +50,56 @@ export default function CentersPage() {
     setIsModalOpen(true);
   };
 
-  const confirmDelete = (center: Center) => {
+  const confirmDelete = (center: CenterDTO) => {
     setEditingCenter(center);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!editingCenter) return;
-    
-    const updatedCenters = centers.filter(c => c.id !== editingCenter.id);
-    setCenters(updatedCenters);
-    localStorage.setItem('warriors_mock_centers', JSON.stringify(updatedCenters));
-    
-    // Announce to other components if needed
-    window.dispatchEvent(new Event('mockDataChanged'));
-    
-    setIsDeleteModalOpen(false);
-    useUIStore.getState().showToast("Le centre a été supprimé avec succès.", "success");
+    try {
+      await deleteCenter(editingCenter.id);
+      setIsDeleteModalOpen(false);
+      useUIStore.getState().showToast("Le centre a été supprimé avec succès.", "success");
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const newErrors: Record<string, string> = {};
     if (!formData.name.trim()) newErrors.name = "Veuillez renseigner le nom du centre.";
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      let updatedCenters;
+    try {
       if (editingCenter) {
-        updatedCenters = centers.map(c => 
-          c.id === editingCenter.id ? {
-            ...c,
-            name: formData.name,
-            address: formData.address,
-            status: formData.status as 'actif' | 'inactif'
-          } : c
-        );
-        useUIStore.getState().showToast("Le centre a été modifié avec succès.", "success");
-      } else {
-        const newCenter: Center = {
-          id: `c-${Date.now()}`,
+        await updateCenter(editingCenter.id, {
           name: formData.name,
           address: formData.address,
           status: formData.status as 'actif' | 'inactif',
-          organizationId: centers.length > 0 ? centers[0].organizationId : "org-1"
-        };
-        updatedCenters = [...centers, newCenter];
+        });
+        useUIStore.getState().showToast("Le centre a été modifié avec succès.", "success");
+      } else {
+        await createCenter({
+          name: formData.name,
+          address: formData.address,
+          status: formData.status as 'actif' | 'inactif',
+        });
         useUIStore.getState().showToast("Le centre a été créé avec succès.", "success");
       }
-
-      setCenters(updatedCenters);
-      localStorage.setItem('warriors_mock_centers', JSON.stringify(updatedCenters));
-      
-      // Announce to other components if needed
-      window.dispatchEvent(new Event('mockDataChanged'));
-
-      setIsSubmitting(false);
       setIsModalOpen(false);
-    }, 600);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -136,19 +109,19 @@ export default function CentersPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Centres</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les centres de formation.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nouveau centre
-        </button>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau centre
+          </button>
+        )}
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Chargement...</div>
-        ) : centers.length === 0 ? (
+        {!isLoading && centers.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucun centre</h3>
             <p className="text-sm text-muted-foreground">Il n'y a actuellement aucun centre enregistré.</p>
@@ -161,11 +134,11 @@ export default function CentersPage() {
                   <th className="px-6 py-3 font-medium">Nom du centre</th>
                   <th className="px-6 py-3 font-medium">Adresse</th>
                   <th className="px-6 py-3 font-medium">Statut</th>
-                  <th className="px-6 py-3 font-medium text-right">Actions</th>
+                  {canWrite && <th className="px-6 py-3 font-medium text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {centers.map((c) => (
+                {isLoading ? <TableSkeleton rows={5} columns={canWrite ? 4 : 3} /> : centers.map((c) => (
                   <tr key={c.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{c.name}</td>
                     <td className="px-6 py-4 text-muted-foreground">{c.address || '-'}</td>
@@ -174,24 +147,26 @@ export default function CentersPage() {
                         {c.status === 'actif' ? 'Actif' : 'Inactif'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => openEditModal(c)}
-                          className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
-                          title="Modifier"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => confirmDelete(c)}
-                          className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {canWrite && (
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => openEditModal(c)}
+                            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+                            title="Modifier"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(c)}
+                            className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

@@ -3,10 +3,16 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy } from 'lucide-react';
-import { mockUsers, User, mockCenters, Center, Role, UserStatus } from '@/lib/data/mockData';
+import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy, ShieldAlert } from 'lucide-react';
+import { useUsers, createUser, updateUser, deleteUser } from '@/lib/hooks/useUsers';
+import { useCenters } from '@/lib/hooks/useCenters';
+import { useCan } from '@/lib/hooks/useSession';
+import { ApiClientError } from '@/lib/api/client';
+import type { UserDTO } from '@/lib/api/types';
+import type { Role } from '@/lib/types/enums';
 import { Modal } from '@/components/ui/modal';
 import { Select } from '@/components/ui/select';
+import { CardGridItemSkeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/lib/store/useUIStore';
 
@@ -17,8 +23,9 @@ const roleColors: Record<Role, string> = {
 };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [centers, setCenters] = useState<Center[]>([]);
+  const { users, isLoading, error } = useUsers();
+  const { centers } = useCenters();
+  const canWrite = useCan('users', 'write');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -26,9 +33,10 @@ export default function UsersPage() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserDTO | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newUserInfo, setNewUserInfo] = useState<{ matricule: string; password: string } | null>(null);
 
   useEffect(() => {
@@ -45,7 +53,7 @@ export default function UsersPage() {
     firstName: string;
     lastName: string;
     email: string;
-    roles: string[];
+    roles: Role[];
     status: string;
     centerIds: string[];
   }>({
@@ -58,36 +66,10 @@ export default function UsersPage() {
     centerIds: [],
   });
 
-  useEffect(() => {
-    // Load Users
-    const savedUsers = localStorage.getItem('warriors_mock_users');
-    if (savedUsers) {
-      const parsed = JSON.parse(savedUsers).map((u: any) => ({
-        ...u,
-        roles: u.roles || (u.role ? [u.role] : ['GESTIONNAIRE'])
-      }));
-      setUsers(parsed);
-    } else {
-      setUsers(mockUsers);
-      localStorage.setItem('warriors_mock_users', JSON.stringify(mockUsers));
-    }
-
-    // Load Centers
-    const savedCenters = localStorage.getItem('warriors_mock_centers');
-    if (savedCenters) {
-      setCenters(JSON.parse(savedCenters));
-    } else {
-      setCenters(mockCenters);
-    }
-  }, []);
-
   const openAddModal = () => {
     setEditingUser(null);
-    const currentYear = new Date().getFullYear().toString();
-    const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
-    const matricule = `WM${currentYear}${randomPart}`;
     setFormData({
-      matricule,
+      matricule: '',
       firstName: '',
       lastName: '',
       email: '',
@@ -99,16 +81,16 @@ export default function UsersPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (user: User) => {
+  const openEditModal = (user: UserDTO) => {
     setEditingUser(user);
     setFormData({
       matricule: user.matricule || '',
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
-      roles: user.roles || (user as any).role ? [(user as any).role] : ['GESTIONNAIRE'],
+      roles: user.roles,
       status: user.status,
-      centerIds: user.centerIds || [],
+      centerIds: user.centers.map(c => c.id),
     });
     setErrors({});
     setIsModalOpen(true);
@@ -124,69 +106,82 @@ export default function UsersPage() {
     });
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const newErrors: Record<string, string> = {};
     if (!formData.firstName.trim()) newErrors.firstName = "Veuillez renseigner ce champ.";
     if (!formData.lastName.trim()) newErrors.lastName = "Veuillez renseigner ce champ.";
     if (!formData.email.trim()) newErrors.email = "Veuillez renseigner ce champ.";
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
 
-    if (editingUser) {
-      const updated = users.map(u => u.id === editingUser.id ? {
-        ...u,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        roles: formData.roles as Role[],
-        status: formData.status as UserStatus,
-        centerIds: formData.centerIds
-      } : u);
-      setUsers(updated);
-      localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
-      setIsModalOpen(false);
-    } else {
-      const defaultPassword = formData.matricule;
-
-      const newUser: User = {
-        id: `u-${Date.now()}`,
-        matricule: formData.matricule,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        roles: formData.roles as Role[],
-        status: formData.status as UserStatus,
-        centerIds: formData.centerIds
-      };
-      
-      const updated = [...users, newUser];
-      setUsers(updated);
-      localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
-      setIsModalOpen(false);
-      setNewUserInfo({ matricule: formData.matricule, password: defaultPassword });
+    setIsSubmitting(true);
+    try {
+      if (editingUser) {
+        await updateUser(editingUser.id, {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          roles: formData.roles,
+          status: formData.status as 'actif' | 'inactif',
+          centerIds: formData.centerIds,
+        });
+        useUIStore.getState().showToast("Utilisateur modifié avec succès.", "success");
+        setIsModalOpen(false);
+      } else {
+        const { user, provisionalPassword } = await createUser({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          roles: formData.roles,
+          status: formData.status as 'actif' | 'inactif',
+          centerIds: formData.centerIds,
+        });
+        setIsModalOpen(false);
+        setNewUserInfo({ matricule: user.matricule || '', password: provisionalPassword });
+      }
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDelete = () => {
-    if (editingUser) {
-      const updated = users.filter(u => u.id !== editingUser.id);
-      setUsers(updated);
-      localStorage.setItem('warriors_mock_users', JSON.stringify(updated));
+  const handleDelete = async () => {
+    if (!editingUser) return;
+    try {
+      await deleteUser(editingUser.id);
+      useUIStore.getState().showToast("Utilisateur supprimé avec succès.", "success");
       setIsDeleteModalOpen(false);
       setEditingUser(null);
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 409) {
+        useUIStore.getState().showToast("Désactivez plutôt que de supprimer : cet utilisateur a des paiements/dépenses enregistrés.", "error");
+      } else {
+        useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+      }
+      setIsDeleteModalOpen(false);
     }
   };
+
+  if (error instanceof ApiClientError && error.status === 403) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
+        <ShieldAlert className="w-10 h-10 text-muted-foreground" />
+        <h2 className="text-lg font-semibold text-foreground">Accès refusé</h2>
+        <p className="text-sm text-muted-foreground max-w-sm">Vous n'avez pas les droits nécessaires pour consulter cette page.</p>
+      </div>
+    );
+  }
 
   const filteredUsers = users.filter(u => {
     const matchesSearch = (u.firstName + ' ' + u.lastName + ' ' + u.email).toLowerCase().includes(searchQuery.toLowerCase());
-    const userRoles = u.roles ? u.roles : ((u as any).role ? [(u as any).role] : []);
-    const matchesRole = roleFilter === 'all' || userRoles.includes(roleFilter);
-    const matchesCenter = centerFilter === 'all' || u.centerIds.includes(centerFilter);
+    const matchesRole = roleFilter === 'all' || u.roles.includes(roleFilter as Role);
+    const matchesCenter = centerFilter === 'all' || u.centers.some(c => c.id === centerFilter);
     return matchesSearch && matchesRole && matchesCenter;
   });
 
@@ -197,13 +192,15 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight">Utilisateurs</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les accès et les rôles de votre équipe.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Nouvel utilisateur
-        </button>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvel utilisateur
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -248,101 +245,106 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredUsers.map((user) => (
-          <Card key={user.id} className="pt-6 pb-0 overflow-visible relative group flex flex-col items-center bg-card border-border hover:shadow-md transition-shadow rounded-xl shadow-sm">
-            {/* Status indicator removed as per user request */}
-
-            {/* Dropdown Menu */}
-            <div className="absolute right-3 top-3 action-dropdown-container">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenDropdownId(openDropdownId === user.id ? null : user.id);
-                }}
-                className="p-1.5 text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </button>
-
-              {openDropdownId === user.id && (
-                <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }).map((_, i) => <CardGridItemSkeleton key={i} />)}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredUsers.map((user) => (
+            <Card key={user.id} className="pt-6 pb-0 overflow-visible relative group flex flex-col items-center bg-card border-border hover:shadow-md transition-shadow rounded-xl shadow-sm">
+              {canWrite && (
+                <div className="absolute right-3 top-3 action-dropdown-container">
                   <button
-                    onClick={() => {
-                      openEditModal(user);
-                      setOpenDropdownId(null);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenDropdownId(openDropdownId === user.id ? null : user.id);
                     }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                    className="p-1.5 text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary rounded-full transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                   >
-                    <Edit2 className="w-4 h-4" /> Modifier
+                    <MoreHorizontal className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => {
-                      setEditingUser(user);
-                      setIsDeleteModalOpen(true);
-                      setOpenDropdownId(null);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
-                  >
-                    <Trash2 className="w-4 h-4" /> Supprimer
-                  </button>
+
+                  {openDropdownId === user.id && (
+                    <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                      <button
+                        onClick={() => {
+                          openEditModal(user);
+                          setOpenDropdownId(null);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                      >
+                        <Edit2 className="w-4 h-4" /> Modifier
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingUser(user);
+                          setIsDeleteModalOpen(true);
+                          setOpenDropdownId(null);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
+                      >
+                        <Trash2 className="w-4 h-4" /> Supprimer
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
 
-            {/* Avatar */}
-            <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4 overflow-hidden shadow-sm">
-              <UserIcon className="w-10 h-10 text-slate-400" />
-            </div>
+              {/* Avatar */}
+              <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4 overflow-hidden shadow-sm">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <UserIcon className="w-10 h-10 text-slate-400" />
+                )}
+              </div>
 
-            {/* User Info */}
-            <h3 className="text-base font-semibold text-foreground px-4 text-center truncate w-full">
-              {user.firstName} {user.lastName}
-            </h3>
-            {user.matricule && (
-              <p className="text-[11px] font-mono text-muted-foreground mt-0.5 px-4 text-center">
-                {user.matricule}
-              </p>
-            )}
-
-            <p
-              className="text-[11px] text-muted-foreground/80 mt-0.5 px-4 text-center truncate w-full"
-              title={user.centerIds && user.centerIds.length > 0 ? user.centerIds.map(cId => centers.find(c => c.id === cId)?.name).filter(Boolean).join(", ") : "Tous les centres"}
-            >
-              {user.centerIds && user.centerIds.length > 0 ? (
-                user.centerIds.map(cId => centers.find(c => c.id === cId)?.name).filter(Boolean).join(", ")
-              ) : (
-                "Tous les centres"
+              {/* User Info */}
+              <h3 className="text-base font-semibold text-foreground px-4 text-center truncate w-full">
+                {user.firstName} {user.lastName}
+              </h3>
+              {user.matricule && (
+                <p className="text-[11px] font-mono text-muted-foreground mt-0.5 px-4 text-center">
+                  {user.matricule}
+                </p>
               )}
-            </p>
 
-            <div className="flex flex-wrap justify-center gap-1.5 mt-3 mb-6">
-              {(user.roles ? user.roles : ((user as any).role ? [(user as any).role] : [])).map((r: string) => (
-                <Badge key={r} variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${roleColors[r as Role]}`}>
-                  {r.charAt(0).toUpperCase() + r.slice(1).toLowerCase()}
-                </Badge>
-              ))}
-              <Badge variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${user.status === 'actif' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                {user.status === 'actif' ? 'Actif' : 'Inactif'}
-              </Badge>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="w-full mt-auto border-t border-border">
-              <a
-                href={`mailto:${user.email}`}
-                className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors"
-                title={user.email}
+              <p
+                className="text-[11px] text-muted-foreground/80 mt-0.5 px-4 text-center truncate w-full"
+                title={user.centers.length > 0 ? user.centers.map(c => c.name).join(", ") : "Tous les centres"}
               >
-                <Mail className="w-4 h-4" />
-                <span className="truncate max-w-[200px]">{user.email}</span>
-              </a>
-            </div>
-          </Card>
-        ))}
-      </div>
+                {user.centers.length > 0 ? user.centers.map(c => c.name).join(", ") : "Tous les centres"}
+              </p>
 
-      {filteredUsers.length === 0 && (
+              <div className="flex flex-wrap justify-center gap-1.5 mt-3 mb-6">
+                {user.roles.map((r) => (
+                  <Badge key={r} variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${roleColors[r]}`}>
+                    {r.charAt(0).toUpperCase() + r.slice(1).toLowerCase()}
+                  </Badge>
+                ))}
+                <Badge variant="outline" className={`px-3 py-0.5 rounded-full text-[10px] font-medium border-none ${user.status === 'actif' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  {user.status === 'actif' ? 'Actif' : 'Inactif'}
+                </Badge>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="w-full mt-auto border-t border-border">
+                <a
+                  href={`mailto:${user.email}`}
+                  className="flex items-center justify-center gap-2 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary/50 hover:text-foreground transition-colors"
+                  title={user.email}
+                >
+                  <Mail className="w-4 h-4" />
+                  <span className="truncate max-w-[200px]">{user.email}</span>
+                </a>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && filteredUsers.length === 0 && (
         <div className="text-center py-12 text-muted-foreground bg-card border border-border rounded-xl shadow-sm">
           Aucun utilisateur trouvé.
         </div>
@@ -351,20 +353,22 @@ export default function UsersPage() {
       {/* Modal Ajout/Modification */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingUser ? "Modifier l'utilisateur" : "Nouvel utilisateur"}
       >
         <form onSubmit={handleFormSubmit} className="space-y-4 mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Matricule</label>
-              <input
-                type="text"
-                value={formData.matricule}
-                disabled
-                className="w-full bg-muted/30 text-muted-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none cursor-not-allowed opacity-80"
-              />
-            </div>
+            {editingUser && (
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Matricule</label>
+                <input
+                  type="text"
+                  value={formData.matricule}
+                  disabled
+                  className="w-full bg-muted/30 text-muted-foreground border border-border rounded-md px-3 py-2 text-sm focus:outline-none cursor-not-allowed opacity-80"
+                />
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Prénom</label>
@@ -514,15 +518,17 @@ export default function UsersPage() {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-muted-foreground bg-muted/50 hover:bg-muted rounded-md transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
             >
-              {editingUser ? "Enregistrer" : "Créer"}
+              {isSubmitting ? "Enregistrement..." : (editingUser ? "Enregistrer" : "Créer")}
             </button>
           </div>
         </form>
@@ -582,9 +588,9 @@ export default function UsersPage() {
           <div className="bg-secondary/50 rounded-lg p-4 grid grid-cols-[180px_1fr] gap-y-3 items-center">
             <span className="text-sm font-medium text-muted-foreground">Matricule</span>
             <span className="text-sm font-bold text-foreground font-mono">{newUserInfo?.matricule}</span>
-            
+
             <div className="col-span-2 border-t border-border/50 my-1"></div>
-            
+
             <span className="text-sm font-medium text-muted-foreground">Mot de passe provisoire</span>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-foreground font-mono bg-background px-2 py-1 rounded border border-border shadow-sm">

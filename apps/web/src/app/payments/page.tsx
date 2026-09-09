@@ -1,49 +1,44 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Plus, MoreHorizontal, Edit, Trash2, Search, X } from "lucide-react";
+import React, { useState } from "react";
+import { Plus, MoreHorizontal, Edit, Trash2, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
-import { mockPayments, mockStudents, Payment, Student } from "@/lib/data/mockData";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import { usePayments, createPayment, updatePayment, deletePayment } from "@/lib/hooks/usePayments";
+import { useStudents } from "@/lib/hooks/useStudents";
+import { useCan } from "@/lib/hooks/useSession";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { ApiClientError } from "@/lib/api/client";
+import { useUIStore } from "@/lib/store/useUIStore";
+import type { PaymentDTO } from "@/lib/api/types";
+import type { PaymentMethod } from "@/lib/types/enums";
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
-  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [editingPayment, setEditingPayment] = useState<PaymentDTO | null>(null);
+  const [paymentToDelete, setPaymentToDelete] = useState<PaymentDTO | null>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const canWrite = useCan("payments", "write");
+
+  const debouncedSearch = useDebouncedValue(searchQuery);
+  const { data: payments, meta, isLoading } = usePayments({ search: debouncedSearch, page, pageSize: 10 });
+  const { data: students } = useStudents({ pageSize: 100 });
 
   const [formData, setFormData] = useState({
     studentId: "",
     amount: "",
-    method: "Espèces" as Payment["method"],
+    method: "Espèces" as PaymentMethod,
     date: new Date().toISOString().split('T')[0],
     reference: "",
   });
 
-  useEffect(() => {
-    try {
-      // Load payments
-      const storedPayments = localStorage.getItem('warriors_mock_payments');
-      const loadedPayments = storedPayments ? JSON.parse(storedPayments) : mockPayments;
-      setPayments(loadedPayments);
-
-      // Load students
-      const storedStudents = localStorage.getItem('warriors_mock_students');
-      const loadedStudents = storedStudents ? JSON.parse(storedStudents) : mockStudents;
-      setStudents(loadedStudents);
-
-    } catch (e) {
-      console.error("Failed to load local data", e);
-    } finally {
-      setLoading(false);
-    }
-
+  React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if ((e.target as Element).closest('.action-dropdown-container')) return;
       setOpenDropdownId(null);
@@ -64,59 +59,58 @@ export default function PaymentsPage() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (p: Payment) => {
+  const openEditModal = (p: PaymentDTO) => {
     setEditingPayment(p);
     setFormData({
       studentId: p.studentId,
       amount: p.amount.toString(),
       method: p.method,
-      date: p.date,
+      date: p.date.split('T')[0],
       reference: p.reference || "",
     });
     setIsModalOpen(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updated;
-    if (editingPayment) {
-      updated = payments.map(p => p.id === editingPayment.id ? {
-        ...p,
-        studentId: formData.studentId,
-        amount: parseInt(formData.amount),
-        method: formData.method,
-        date: formData.date,
-        reference: formData.reference || undefined
-      } : p);
-    } else {
-      const newPayment: Payment = {
-        id: `pay_${Date.now()}`,
-        studentId: formData.studentId,
-        amount: parseInt(formData.amount),
-        method: formData.method,
-        date: formData.date,
-        reference: formData.reference || undefined,
-        recordedBy: "Utilisateur Actuel"
-      };
-      updated = [newPayment, ...payments];
+    setIsSubmitting(true);
+    try {
+      if (editingPayment) {
+        await updatePayment(editingPayment.id, {
+          amount: parseInt(formData.amount, 10),
+          method: formData.method,
+          date: formData.date,
+          reference: formData.reference || undefined,
+        });
+        useUIStore.getState().showToast("Paiement modifié avec succès.", "success");
+      } else {
+        await createPayment({
+          studentId: formData.studentId,
+          amount: parseInt(formData.amount, 10),
+          method: formData.method,
+          date: formData.date,
+          reference: formData.reference || undefined,
+        });
+        useUIStore.getState().showToast("Paiement enregistré avec succès.", "success");
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-    setPayments(updated);
-    localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
-    setIsModalOpen(false);
   };
 
-  const handleDelete = () => {
-    if (paymentToDelete) {
-      const updated = payments.filter(p => p.id !== paymentToDelete.id);
-      setPayments(updated);
-      localStorage.setItem('warriors_mock_payments', JSON.stringify(updated));
+  const handleDelete = async () => {
+    if (!paymentToDelete) return;
+    try {
+      await deletePayment(paymentToDelete.id);
+      useUIStore.getState().showToast("Paiement supprimé avec succès.", "success");
+      setPaymentToDelete(null);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
       setPaymentToDelete(null);
     }
-  };
-
-  const getStudentName = (id: string) => {
-    const s = students.find(s => s.id === id);
-    return s ? `${s.firstName} ${s.lastName}` : 'Inconnu';
   };
 
   const studentOptions = students.map(s => ({
@@ -132,12 +126,7 @@ export default function PaymentsPage() {
     { label: "Virement Bancaire", value: "Bank Transfer" },
   ];
 
-  const filteredPayments = payments.filter(p => {
-    const studentName = getStudentName(p.studentId).toLowerCase();
-    const ref = (p.reference || "").toLowerCase();
-    const query = searchQuery.toLowerCase();
-    return studentName.includes(query) || ref.includes(query);
-  });
+  const totalPages = meta ? Math.max(1, Math.ceil(meta.total / meta.pageSize)) : 1;
 
   return (
     <div className="space-y-6 pb-10">
@@ -146,13 +135,15 @@ export default function PaymentsPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Paiements</h1>
           <p className="text-sm text-muted-foreground mt-1">Gérez les encaissements et reçus.</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Enregistrer un paiement
-        </button>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Enregistrer un paiement
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
@@ -160,9 +151,9 @@ export default function PaymentsPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Rechercher un paiement (étudiant ou réf)..."
+            placeholder="Rechercher un paiement (étudiant)..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
           />
           {searchQuery && (
@@ -177,15 +168,13 @@ export default function PaymentsPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl shadow-none overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Chargement...</div>
-        ) : payments.length === 0 ? (
+        {!isLoading && payments.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucun paiement</h3>
             <p className="text-sm text-muted-foreground">Il n'y a actuellement aucun paiement enregistré.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto pb-24 min-h-[250px]">
+          <div className="overflow-x-auto pb-4 min-h-[250px]">
             <table className="w-full text-sm text-left">
               <thead className="bg-secondary/50 text-muted-foreground">
                 <tr>
@@ -195,63 +184,93 @@ export default function PaymentsPage() {
                   <th className="px-6 py-3 font-medium">Référence</th>
                   <th className="px-6 py-3 font-medium">Enregistré par</th>
                   <th className="px-6 py-3 font-medium text-right">Montant</th>
-                  <th className="px-6 py-3 font-medium w-16"></th>
+                  {canWrite && <th className="px-6 py-3 font-medium w-16"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredPayments.map((p) => (
+                {isLoading ? <TableSkeleton rows={6} columns={canWrite ? 7 : 6} /> : payments.map((p) => (
                   <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-6 py-4 text-muted-foreground">{new Date(p.date).toLocaleDateString('fr-FR')}</td>
-                    <td className="px-6 py-4 font-medium text-foreground">{getStudentName(p.studentId)}</td>
+                    <td className="px-6 py-4 font-medium text-foreground">
+                      {p.student ? `${p.student.firstName} ${p.student.lastName}` : 'Inconnu'}
+                    </td>
                     <td className="px-6 py-4 capitalize text-muted-foreground">{p.method?.replace('_', ' ')}</td>
                     <td className="px-6 py-4 text-muted-foreground">{p.reference || '-'}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{p.recordedBy || '-'}</td>
-                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{formatCurrency(p.amount)}</td>
-                    <td className="px-6 py-4 text-right relative action-dropdown-container">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenDropdownId(openDropdownId === p.id ? null : p.id);
-                        }}
-                        className="p-2 hover:bg-secondary rounded-md text-muted-foreground transition-colors"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-
-                      {openDropdownId === p.id && (
-                        <div className="absolute right-6 top-10 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                          <button
-                            onClick={() => {
-                              openEditModal(p);
-                              setOpenDropdownId(null);
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
-                          >
-                            <Edit className="w-4 h-4" /> Modifier
-                          </button>
-                          <button
-                            onClick={() => {
-                              setPaymentToDelete(p);
-                              setOpenDropdownId(null);
-                            }}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
-                          >
-                            <Trash2 className="w-4 h-4" /> Supprimer
-                          </button>
-                        </div>
-                      )}
+                    <td className="px-6 py-4 text-muted-foreground">
+                      {p.recordedBy ? `${p.recordedBy.firstName} ${p.recordedBy.lastName}` : '-'}
                     </td>
+                    <td className="px-6 py-4 text-right font-medium text-emerald-600">+{formatCurrency(p.amount)}</td>
+                    {canWrite && (
+                      <td className="px-6 py-4 text-right relative action-dropdown-container">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdownId(openDropdownId === p.id ? null : p.id);
+                          }}
+                          className="p-2 hover:bg-secondary rounded-md text-muted-foreground transition-colors"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+
+                        {openDropdownId === p.id && (
+                          <div className="absolute right-6 top-10 mt-1 w-48 bg-card border border-border rounded-lg shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                            <button
+                              onClick={() => {
+                                openEditModal(p);
+                                setOpenDropdownId(null);
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                            >
+                              <Edit className="w-4 h-4" /> Modifier
+                            </button>
+                            <button
+                              onClick={() => {
+                                setPaymentToDelete(p);
+                                setOpenDropdownId(null);
+                              }}
+                              className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
+                            >
+                              <Trash2 className="w-4 h-4" /> Supprimer
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+        {meta && meta.total > 0 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-border">
+            <p className="text-xs text-muted-foreground">
+              {meta.total} paiement{meta.total > 1 ? 's' : ''}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="p-1.5 rounded-md border border-border text-muted-foreground hover:bg-secondary disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs text-muted-foreground">Page {page} / {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="p-1.5 rounded-md border border-border text-muted-foreground hover:bg-secondary disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingPayment ? "Modifier le paiement" : "Enregistrer un paiement"}
         contentClassName="overflow-visible"
       >
@@ -287,7 +306,7 @@ export default function PaymentsPage() {
               <Select
                 options={methodOptions}
                 value={formData.method}
-                onChange={(val) => setFormData({ ...formData, method: val as any })}
+                onChange={(val) => setFormData({ ...formData, method: val as PaymentMethod })}
               />
             </div>
 
@@ -315,15 +334,17 @@ export default function PaymentsPage() {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {editingPayment ? "Enregistrer" : "Valider le paiement"}
+              {isSubmitting ? "Enregistrement..." : (editingPayment ? "Enregistrer" : "Valider le paiement")}
             </button>
           </div>
         </form>

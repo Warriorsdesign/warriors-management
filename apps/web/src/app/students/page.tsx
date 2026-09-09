@@ -1,73 +1,65 @@
 "use client"
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { Search, Plus, CheckCircle2, X, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Modal } from "@/components/ui/modal";
 import { Card } from "@/components/ui/card";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { DatePicker } from "@/components/ui/date-picker";
-import { mockStudents, mockClasses, mockFormations, mockPaymentSchedules, mockPayments, Student, StudentStatus, getComputedClassStatus, ClassGroup, Formation, Payment, PaymentSchedule, PaymentStatus } from "@/lib/data/mockData";
+import { useStudents, createStudent, updateStudent, deleteStudent } from "@/lib/hooks/useStudents";
+import { useClasses } from "@/lib/hooks/useClasses";
+import { useFormations } from "@/lib/hooks/useFormations";
+import { useCan } from "@/lib/hooks/useSession";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { ApiClientError } from "@/lib/api/client";
+import { useUIStore } from "@/lib/store/useUIStore";
+import type { StudentListItemDTO } from "@/lib/api/types";
+import type { StudentStatus, PaymentMethod, IntervalType, Gender } from "@/lib/types/enums";
 import { formatCurrency, cn } from "@/lib/utils";
 import Link from "next/link";
 import { Select } from "@/components/ui/select";
-import { useRouter } from "next/navigation";
 
 export default function StudentsPage() {
-  const router = useRouter();
-
-  const [students, setStudents] = useState<Student[]>(mockStudents);
-  const [classes, setClasses] = useState<ClassGroup[]>(mockClasses);
-  const [formations, setFormations] = useState<Formation[]>(mockFormations);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  React.useEffect(() => {
-    try {
-      const storedStudents = localStorage.getItem('warriors_mock_students');
-      if (storedStudents) setStudents(JSON.parse(storedStudents));
-      else localStorage.setItem('warriors_mock_students', JSON.stringify(mockStudents));
-
-      const storedClasses = localStorage.getItem('warriors_mock_classes');
-      if (storedClasses) setClasses(JSON.parse(storedClasses));
-      else localStorage.setItem('warriors_mock_classes', JSON.stringify(mockClasses));
-
-      const storedFormations = localStorage.getItem('warriors_mock_formations');
-      if (storedFormations) setFormations(JSON.parse(storedFormations));
-      else localStorage.setItem('warriors_mock_formations', JSON.stringify(mockFormations));
-    } catch (e) {
-      console.error("Failed to load local data", e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebouncedValue(searchQuery);
   const [selectedFormations, setSelectedFormations] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<any>(null);
-  const [studentToDelete, setStudentToDelete] = useState<any>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  const { data: currentStudents, meta, isLoading } = useStudents({
+    search: debouncedSearch,
+    formationId: selectedFormations,
+    status: selectedStatuses as StudentStatus[],
+    page: currentPage,
+    pageSize: itemsPerPage,
+  });
+  const { classes } = useClasses();
+  const { formations } = useFormations();
+  const canWrite = useCan("students", "write");
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<StudentListItemDTO | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<StudentListItemDTO | null>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    gender: 'Male' as "Male" | "Female",
+    gender: 'Male' as Gender,
     contact: '',
-    matricule: '',
     formationId: '',
     classId: '',
     currentLevel: '',
     currentStatus: 'nouvel_inscrit' as StudentStatus,
     enrollmentDate: new Date().toISOString().split('T')[0],
     registrationFee: '',
-    paymentMethod: 'Espèces' as Payment["method"],
+    paymentMethod: 'Espèces' as PaymentMethod,
     installmentsCount: '3',
-    installmentInterval: '1_mois'
+    installmentInterval: '1_mois' as IntervalType,
   });
 
   React.useEffect(() => {
@@ -78,6 +70,10 @@ export default function StudentsPage() {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedFormations, selectedStatuses]);
 
   const getStudentStatusBadge = (status: string) => {
     switch (status) {
@@ -106,33 +102,7 @@ export default function StudentsPage() {
     }
   };
 
-  const filteredStudents = useMemo(() => {
-    return students.filter(student => {
-      const classGroup = classes.find(c => c.id === student.classId);
-      const formation = formations.find(f => f.id === classGroup?.formationId);
-
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch =
-        student.firstName.toLowerCase().includes(searchLower) ||
-        student.lastName.toLowerCase().includes(searchLower) ||
-        student.matricule.toLowerCase().includes(searchLower);
-
-      const matchesFormation = selectedFormations.length === 0 || (formation && selectedFormations.includes(formation.id));
-      const matchesStatus = selectedStatuses.length === 0 || selectedStatuses.includes(student.currentStatus);
-
-      return matchesSearch && matchesFormation && matchesStatus;
-    });
-  }, [students, classes, formations, searchQuery, selectedFormations, selectedStatuses]);
-
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedFormations, selectedStatuses]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / itemsPerPage));
-  const currentStudents = filteredStudents.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const totalPages = meta ? Math.max(1, Math.ceil(meta.total / meta.pageSize)) : 1;
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -140,47 +110,14 @@ export default function StudentsPage() {
     }
   };
 
-  const openAddModal = () => {
-    setEditingStudent(null);
-    setFormData({
-      firstName: "",
-      lastName: "",
-      gender: "Male",
-      contact: "",
-      matricule: `WM${new Date().getFullYear()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-      formationId: "",
-      classId: "",
-      currentLevel: "",
-      currentStatus: "nouvel_inscrit",
-      enrollmentDate: new Date().toISOString().split('T')[0],
-      registrationFee: '',
-      paymentMethod: 'Espèces',
-      installmentsCount: '3',
-      installmentInterval: '1_mois'
-    });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (student: any) => {
-    setEditingStudent(student);
-    const classGroup = classes.find(c => c.id === student.classId);
-    setFormData({
-      firstName: student.firstName,
-      lastName: student.lastName,
-      gender: student.gender as "Male" | "Female",
-      contact: student.contact || "",
-      matricule: student.matricule,
-      formationId: classGroup ? classGroup.formationId : "",
-      classId: student.classId,
-      currentLevel: student.currentLevel || "",
-      currentStatus: student.currentStatus,
-      enrollmentDate: student.enrollmentDate || new Date().toISOString().split('T')[0],
-      registrationFee: '',
-      paymentMethod: 'Espèces',
-      installmentsCount: '3',
-      installmentInterval: '1_mois'
-    });
-    setIsModalOpen(true);
+  // Stashe l'ordre des ids de la page courante pour la navigation Précédent/Suivant
+  // sur la fiche étudiant (scopée à cette page de résultats, pas au dataset entier).
+  const stashNavContext = () => {
+    try {
+      sessionStorage.setItem('students_nav_context', JSON.stringify({ ids: currentStudents.map(s => s.id) }));
+    } catch {
+      // sessionStorage indisponible (navigation privée, etc.) - pas bloquant
+    }
   };
 
   const resetForm = () => {
@@ -189,7 +126,6 @@ export default function StudentsPage() {
       lastName: '',
       gender: 'Male',
       contact: '',
-      matricule: '',
       formationId: '',
       classId: '',
       currentLevel: '',
@@ -198,9 +134,37 @@ export default function StudentsPage() {
       registrationFee: '',
       paymentMethod: 'Espèces',
       installmentsCount: '3',
-      installmentInterval: '1_mois'
+      installmentInterval: '1_mois',
     });
     setErrors({});
+  };
+
+  const openAddModal = () => {
+    setEditingStudent(null);
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (student: StudentListItemDTO) => {
+    setEditingStudent(student);
+    const classGroup = classes.find(c => c.id === student.classId);
+    setFormData({
+      firstName: student.firstName,
+      lastName: student.lastName,
+      gender: student.gender,
+      contact: student.contact || "",
+      formationId: classGroup ? classGroup.formationId : "",
+      classId: student.classId,
+      currentLevel: student.currentLevel || "",
+      currentStatus: student.currentStatus,
+      enrollmentDate: student.enrollmentDate.split('T')[0],
+      registrationFee: '',
+      paymentMethod: 'Espèces',
+      installmentsCount: '3',
+      installmentInterval: '1_mois',
+    });
+    setErrors({});
+    setIsModalOpen(true);
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -212,7 +176,7 @@ export default function StudentsPage() {
     if (!formData.contact.trim()) newErrors.contact = "Veuillez renseigner le contact.";
     if (!formData.formationId) newErrors.formationId = "Veuillez sélectionner une formation.";
     if (!formData.classId) newErrors.classId = "Veuillez sélectionner une classe.";
-    
+
     if (!editingStudent) {
       if (!formData.registrationFee || parseInt(formData.registrationFee) <= 0) {
         newErrors.registrationFee = "Veuillez renseigner les frais d'inscription.";
@@ -225,114 +189,51 @@ export default function StudentsPage() {
     }
 
     setIsSubmitting(true);
-
     try {
-      let updatedStudents;
       if (editingStudent) {
-        updatedStudents = students.map(s =>
-          s.id === editingStudent.id ? {
-            ...s,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-            contact: formData.contact,
-            classId: formData.classId,
-            currentStatus: formData.currentStatus,
-            enrollmentDate: formData.enrollmentDate,
-            gender: formData.gender
-          } : s
-        );
-      } else {
-        const newStudent: Student = {
-          id: `stu_${Date.now()}`,
-          matricule: formData.matricule,
+        await updateStudent(editingStudent.id, {
           firstName: formData.firstName,
           lastName: formData.lastName,
           contact: formData.contact,
-          email: "",
+          classId: formData.classId,
+          enrollmentDate: formData.enrollmentDate,
+        });
+        useUIStore.getState().showToast("Étudiant modifié avec succès.", "success");
+      } else {
+        await createStudent({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
           gender: formData.gender,
+          contact: formData.contact,
           classId: formData.classId,
           currentLevel: formData.currentLevel || undefined,
           currentStatus: formData.currentStatus,
           enrollmentDate: formData.enrollmentDate,
-        };
-
-        const registrationFeeNum = parseInt(formData.registrationFee) || 0;
-        const classGroup = classes.find(c => c.id === formData.classId);
-        const formation = formations.find(f => f.id === classGroup?.formationId);
-        const totalCost = formation?.totalCost || 0;
-        const remainingAmount = Math.max(0, totalCost - registrationFeeNum);
-
-        if (registrationFeeNum > 0) {
-          const newPayment: Payment = {
-            id: `pay_${Date.now()}_1`,
-            studentId: newStudent.id,
-            amount: registrationFeeNum,
-            date: formData.enrollmentDate || new Date().toISOString().split('T')[0],
-            method: formData.paymentMethod,
-            recordedBy: "Admin",
-            motif: "Frais d'inscription"
-          };
-          const storedPaymentsStr = localStorage.getItem('warriors_mock_payments');
-          const paymentsToUpdate = storedPaymentsStr ? JSON.parse(storedPaymentsStr) : mockPayments;
-          paymentsToUpdate.unshift(newPayment);
-          localStorage.setItem('warriors_mock_payments', JSON.stringify(paymentsToUpdate));
-        }
-
-        if (totalCost > 0) {
-          const installmentsCount = parseInt(formData.installmentsCount) || 1;
-          const installmentAmount = Math.round(remainingAmount / installmentsCount);
-
-          const installments = [];
-          const currentDate = new Date(formData.enrollmentDate || new Date());
-
-          for (let i = 0; i < installmentsCount; i++) {
-            if (formData.installmentInterval.includes('semaine')) {
-              const weeks = parseInt(formData.installmentInterval.split('_')[0]);
-              currentDate.setDate(currentDate.getDate() + weeks * 7);
-            } else if (formData.installmentInterval.includes('mois')) {
-              const months = parseInt(formData.installmentInterval.split('_')[0]);
-              currentDate.setMonth(currentDate.getMonth() + months);
-            }
-
-            const isLate = new Date(currentDate) < new Date();
-
-            installments.push({
-              amount: installmentAmount,
-              dueDate: currentDate.toISOString().split('T')[0],
-              status: (isLate ? "en_retard" : "a_jour") as PaymentStatus
-            });
-          }
-
-          const hasLateInstallment = installments.some(i => i.status === "en_retard");
-
-          const newSchedule: PaymentSchedule = {
-            id: `sch_${Date.now()}`,
-            studentId: newStudent.id,
-            totalAmount: totalCost,
-            paidAmount: registrationFeeNum,
-            remainingAmount: remainingAmount,
-            status: remainingAmount === 0 ? "solde" : (hasLateInstallment ? "en_retard" : "a_jour"),
-            installments: installments
-          };
-
-          const storedSchedulesStr = localStorage.getItem('warriors_mock_payment_schedules');
-          const schedulesToUpdate = storedSchedulesStr ? JSON.parse(storedSchedulesStr) : mockPaymentSchedules;
-          schedulesToUpdate.unshift(newSchedule);
-          localStorage.setItem('warriors_mock_payment_schedules', JSON.stringify(schedulesToUpdate));
-        }
-
-        updatedStudents = [newStudent, ...students];
+          registrationFee: parseInt(formData.registrationFee, 10) || 0,
+          paymentMethod: formData.paymentMethod,
+          installmentsCount: parseInt(formData.installmentsCount, 10) || 0,
+          installmentInterval: formData.installmentInterval,
+        });
+        useUIStore.getState().showToast("Étudiant ajouté avec succès.", "success");
       }
-
-      setStudents(updatedStudents);
-      localStorage.setItem('warriors_mock_students', JSON.stringify(updatedStudents));
       setIsModalOpen(false);
       resetForm();
-    } catch (error) {
-      console.error("Error saving student", error);
-      alert("Une erreur est survenue lors de la sauvegarde.");
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!studentToDelete) return;
+    try {
+      await deleteStudent(studentToDelete.id);
+      useUIStore.getState().showToast("Étudiant supprimé avec succès.", "success");
+      setStudentToDelete(null);
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
+      setStudentToDelete(null);
     }
   };
 
@@ -358,22 +259,15 @@ export default function StudentsPage() {
           <p className="text-sm text-muted-foreground mt-1">Gérez les inscriptions et les dossiers des élèves</p>
         </div>
 
-        {isLoading && (
-          <div className="flex-1 text-center text-sm text-muted-foreground animate-pulse">
-            Chargement des données...
-          </div>
+        {canWrite && (
+          <button
+            onClick={openAddModal}
+            className="flex justify-center items-center gap-2 bg-primary text-primary-foreground h-9 px-4 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvel étudiant
+          </button>
         )}
-        <button
-          onClick={() => {
-            setEditingStudent(null);
-            resetForm();
-            setIsModalOpen(true);
-          }}
-          className="flex justify-center items-center gap-2 bg-primary text-primary-foreground h-9 px-4 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Nouvel étudiant
-        </button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
@@ -381,7 +275,7 @@ export default function StudentsPage() {
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Rechercher (nom, mat., tel)..."
+            placeholder="Rechercher (nom, matricule)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-10 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary transition-all duration-300 hover:shadow-md hover:border-primary/50 focus:shadow-md"
@@ -428,7 +322,9 @@ export default function StudentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {currentStudents.length === 0 ? (
+              {isLoading ? (
+                <TableSkeleton rows={6} columns={7} />
+              ) : currentStudents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     Aucun étudiant trouvé.
@@ -439,14 +335,10 @@ export default function StudentsPage() {
                   const classGroup = classes.find(c => c.id === student.classId);
                   const formation = formations.find(f => f.id === classGroup?.formationId);
 
-                  const storedSchedulesStr = localStorage.getItem('warriors_mock_payment_schedules');
-                  const currentSchedules = storedSchedulesStr ? JSON.parse(storedSchedulesStr) : mockPaymentSchedules;
-                  const paymentSchedule = currentSchedules.find((p: PaymentSchedule) => p.studentId === student.id);
-
                   return (
                     <tr key={student.id} className="hover:bg-secondary/30 transition-colors group">
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <Link href={`/students/${student.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                        <Link href={`/students/${student.id}`} onClick={stashNavContext} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                           <div className="w-9 h-9 flex-shrink-0 rounded-full bg-secondary flex items-center justify-center text-foreground font-bold text-xs">
                             {student.firstName.charAt(0)}{student.lastName.charAt(0)}
                           </div>
@@ -462,12 +354,12 @@ export default function StudentsPage() {
                         {getStudentStatusBadge(student.currentStatus)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {paymentSchedule && getPaymentStatusBadge(paymentSchedule.status)}
+                        {student.schedule && getPaymentStatusBadge(student.schedule.status)}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {paymentSchedule ? (
+                        {student.schedule ? (
                           <span className="font-semibold text-foreground">
-                            {formatCurrency(paymentSchedule.remainingAmount)}
+                            {formatCurrency(student.schedule.remainingAmount)}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -489,31 +381,36 @@ export default function StudentsPage() {
                             <div className={`absolute right-0 w-32 bg-background border border-border rounded-md shadow-lg py-1 z-50 ${idx >= currentStudents.length - 2 && currentStudents.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'}`}>
                               <Link
                                 href={`/students/${student.id}`}
+                                onClick={stashNavContext}
                                 className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
                               >
                                 <Eye className="w-4 h-4" /> Détails
                               </Link>
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  openEditModal(student);
-                                  setOpenDropdownId(null);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
-                              >
-                                <Edit className="w-4 h-4" /> Modifier
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setStudentToDelete(student);
-                                  setOpenDropdownId(null);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
-                              >
-                                <Trash2 className="w-4 h-4" /> Supprimer
-                              </button>
+                              {canWrite && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      openEditModal(student);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                                  >
+                                    <Edit className="w-4 h-4" /> Modifier
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setStudentToDelete(student);
+                                      setOpenDropdownId(null);
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 w-full text-left"
+                                  >
+                                    <Trash2 className="w-4 h-4" /> Supprimer
+                                  </button>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
@@ -528,7 +425,9 @@ export default function StudentsPage() {
 
         <div className="border-t border-border px-4 py-3 flex items-center justify-between bg-secondary/20">
           <div className="text-xs text-muted-foreground">
-            Affichage de <span className="font-medium text-foreground">{Math.min(filteredStudents.length, (currentPage - 1) * itemsPerPage + 1)}</span> à <span className="font-medium text-foreground">{Math.min(filteredStudents.length, currentPage * itemsPerPage)}</span> sur <span className="font-medium text-foreground">{filteredStudents.length}</span> résultats
+            {meta && (
+              <>Affichage de <span className="font-medium text-foreground">{Math.min(meta.total, (currentPage - 1) * itemsPerPage + 1)}</span> à <span className="font-medium text-foreground">{Math.min(meta.total, currentPage * itemsPerPage)}</span> sur <span className="font-medium text-foreground">{meta.total}</span> résultats</>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <nav className="flex items-center gap-1">
@@ -565,7 +464,7 @@ export default function StudentsPage() {
 
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !isSubmitting && setIsModalOpen(false)}
         title={editingStudent ? "Modifier l'étudiant" : "Ajouter un étudiant"}
       >
         <form className="space-y-6" onSubmit={handleFormSubmit}>
@@ -609,17 +508,19 @@ export default function StudentsPage() {
                 />
                 {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Sexe</label>
-                <Select
-                  value={formData.gender}
-                  onChange={(val) => setFormData({ ...formData, gender: val as "Male" | "Female" })}
-                  options={[
-                    { label: 'Masculin', value: 'Male' },
-                    { label: 'Féminin', value: 'Female' },
-                  ]}
-                />
-              </div>
+              {!editingStudent && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Sexe</label>
+                  <Select
+                    value={formData.gender}
+                    onChange={(val) => setFormData({ ...formData, gender: val as Gender })}
+                    options={[
+                      { label: 'Masculin', value: 'Male' },
+                      { label: 'Féminin', value: 'Female' },
+                    ]}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Téléphone</label>
                 <input
@@ -674,38 +575,37 @@ export default function StudentsPage() {
                     .filter(c => {
                       if (c.formationId !== formData.formationId) return false;
                       if (editingStudent && c.id === editingStudent.classId) return true;
-                      const status = getComputedClassStatus(c);
-                      return status === 'ouverte';
+                      return c.status === 'ouverte';
                     })
-                    .map(c => {
-                      return { label: c.name, value: c.id };
-                    })
+                    .map(c => ({ label: c.name, value: c.id }))
                   }
                   className={errors.classId ? "border-red-500 animate-shake" : ""}
                 />
                 {errors.classId && <p className="text-xs text-red-500">{errors.classId}</p>}
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Statut initial</label>
-                <Select
-                  value={formData.currentStatus}
-                  onChange={(val) => setFormData({ ...formData, currentStatus: val as StudentStatus })}
-                  options={[
-                    { label: 'Nouvel inscrit', value: 'nouvel_inscrit' },
-                    { label: 'Réinscrit', value: 'reinscrit' },
-                    { label: 'En cours', value: 'en_cours' },
-                  ]}
-                />
-              </div>
+              {!editingStudent && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Statut initial</label>
+                  <Select
+                    value={formData.currentStatus}
+                    onChange={(val) => setFormData({ ...formData, currentStatus: val as StudentStatus })}
+                    options={[
+                      { label: 'Nouvel inscrit', value: 'nouvel_inscrit' },
+                      { label: 'Réinscrit', value: 'reinscrit' },
+                      { label: 'En cours', value: 'en_cours' },
+                    ]}
+                  />
+                </div>
+              )}
 
-              {selectedFormationForForm?.hasLevels && selectedFormationForForm.levels && (
+              {!editingStudent && selectedFormationForForm?.hasLevels && selectedFormationForForm.levels && (
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">Niveau initial</label>
                   <Select
                     value={formData.currentLevel}
                     onChange={(val) => setFormData({ ...formData, currentLevel: val })}
                     placeholder="Sélectionner un niveau"
-                    options={selectedFormationForForm.levels.map((lvl: any) => ({ label: lvl.name, value: lvl.name }))}
+                    options={selectedFormationForForm.levels.map((lvl) => ({ label: lvl.name, value: lvl.id }))}
                   />
                 </div>
               )}
@@ -713,7 +613,7 @@ export default function StudentsPage() {
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Date d'inscription</label>
                 <DatePicker
-                  disablePastDates={true}
+                  disablePastDates={!editingStudent}
                   value={formData.enrollmentDate ? new Date(formData.enrollmentDate) : undefined}
                   onChange={(d) => {
                     if (d) {
@@ -762,7 +662,7 @@ export default function StudentsPage() {
                       <label className="text-xs font-medium text-muted-foreground">Mode de paiement</label>
                       <Select
                         value={formData.paymentMethod}
-                        onChange={(val) => setFormData({ ...formData, paymentMethod: val as Payment["method"] })}
+                        onChange={(val) => setFormData({ ...formData, paymentMethod: val as PaymentMethod })}
                         options={[
                           { label: 'Espèces', value: 'Espèces' },
                           { label: 'Mobile Money', value: 'Mobile Money' },
@@ -788,7 +688,7 @@ export default function StudentsPage() {
                       <label className="text-xs font-medium text-muted-foreground">Intervalle</label>
                       <Select
                         value={formData.installmentInterval}
-                        onChange={(val) => setFormData({ ...formData, installmentInterval: val })}
+                        onChange={(val) => setFormData({ ...formData, installmentInterval: val as IntervalType })}
                         options={[
                           { label: '1 semaine', value: '1_semaine' },
                           { label: '2 semaines', value: '2_semaines' },
@@ -824,15 +724,17 @@ export default function StudentsPage() {
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
+              disabled={isSubmitting}
               className="px-4 py-2 rounded-md text-sm font-medium border border-border hover:bg-secondary transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {editingStudent ? "Enregistrer" : "Ajouter l'étudiant"}
+              {isSubmitting ? "Enregistrement..." : (editingStudent ? "Enregistrer" : "Ajouter l'étudiant")}
             </button>
           </div>
         </form>
@@ -863,19 +765,7 @@ export default function StudentsPage() {
               Annuler
             </button>
             <button
-              onClick={async () => {
-                if (studentToDelete) {
-                  try {
-                    const updated = students.filter(s => s.id !== studentToDelete.id);
-                    setStudents(updated);
-                    localStorage.setItem('warriors_mock_students', JSON.stringify(updated));
-                    setStudentToDelete(null);
-                  } catch (error) {
-                    console.error("Failed to delete student", error);
-                    alert("Une erreur est survenue lors de la suppression.");
-                  }
-                }
-              }}
+              onClick={handleDelete}
               className="px-5 py-2.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition-colors"
             >
               Oui, supprimer

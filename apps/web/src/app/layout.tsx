@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/layout/LayoutWrapper";
+import { SWRProvider } from "@/components/providers/SWRProvider";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -18,9 +19,11 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <body className={outfit.className}>
-        <LayoutWrapper>
-          {children}
-        </LayoutWrapper>
+        <SWRProvider>
+          <LayoutWrapper>
+            {children}
+          </LayoutWrapper>
+        </SWRProvider>
       </body>
     </html>
   );
