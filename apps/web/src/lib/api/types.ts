@@ -18,6 +18,7 @@ export interface SessionUser {
   roles: Role[];
   status: UserStatus;
   avatarUrl: string | null;
+  centers: { id: string; name: string }[];
 }
 export interface SessionOrganization {
   id: string;
@@ -251,10 +252,12 @@ export interface ExpenseDTO {
   category: ExpenseCategory;
   description: string | null;
   recordedById: string;
+  centerId: string;
   organizationId: string;
   createdAt: string;
   updatedAt: string;
   recordedBy?: { firstName: string; lastName: string };
+  center?: { id: string; name: string };
 }
 export interface CreateExpenseInput {
   title: string;
@@ -262,6 +265,7 @@ export interface CreateExpenseInput {
   date: string;
   category: ExpenseCategory;
   description?: string;
+  centerId: string;
 }
 export type UpdateExpenseInput = Partial<CreateExpenseInput>;
 
@@ -310,30 +314,38 @@ export interface ChangePasswordInput {
 
 // --- Dashboard ---
 export interface DashboardStatsDTO {
-  revenueThisMonth: number;
-  expensesThisMonth: number;
-  netIncome: number;
+  period: { from: string; to: string; label: string; prevLabel: string };
   activeStudents: number;
   totalStudents: number;
+  studentFlow: { entries: number; exits: number; netBalance: number };
+  revenue: number;
+  revenueDelta: number;
+  expenses: number;
+  expensesDelta: number;
+  netIncome: number;
+  netMarginPercent: number;
+  recoveryRate: number;
   totalToCollect: number;
   totalLateAmount: number;
   totalLateInstallments: number;
-  toCollectByFormation: { formationId: string; name: string; value: number }[];
-  studentFlow: {
-    entries: number;
-    exits: number;
-    netBalance: number;
-    byFormation: { formationId: string; name: string; entries: number; exits: number }[];
-  };
-  revenueSeries: { month: string; label: string; revenue: number }[];
-  flowSeries: { month: string; label: string; entrees: number; sorties: number }[];
+  overdueByAge: { bucket: '0-30' | '30-60' | '60+'; amount: number }[];
+  upcomingDue: {
+    studentId: string; firstName: string; lastName: string; matricule: string;
+    formationName: string; dueDate: string; amount: number;
+  }[];
   latePayments: {
     studentId: string; firstName: string; lastName: string; matricule: string;
-    dueDate: string; amount: number;
+    formationName: string; dueDate: string; amount: number;
   }[];
-  recentPayments: {
-    id: string; studentId: string; firstName: string; lastName: string;
-    amount: number; date: string;
+  formationBreakdown: {
+    formationId: string; name: string; entries: number; exits: number;
+    net: number; effectif: number; resteAEncaisser: number;
+  }[];
+  expensesByCategory: { category: string; amount: number }[];
+  financeSeries: { month: string; label: string; revenue: number; expenses: number; net: number }[];
+  recentTransactions: {
+    id: string; type: 'payment' | 'expense'; label: string; subtitle: string;
+    date: string; amount: number;
   }[];
 }
 

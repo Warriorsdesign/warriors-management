@@ -4,8 +4,8 @@ import type { FormationDTO, CreateFormationInput, UpdateFormationInput } from '@
 
 const KEY = '/api/formations';
 
-export function useFormations(search?: string) {
-  const key = `${KEY}${toQueryString({ search })}`;
+export function useFormations(params?: { search?: string; centerId?: string[] }) {
+  const key = `${KEY}${toQueryString({ search: params?.search, centerId: params?.centerId })}`;
   const { data, error, isLoading } = useSWR<{ data: FormationDTO[] }>(key);
   return { formations: data?.data ?? [], error, isLoading };
 }

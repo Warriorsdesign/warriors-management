@@ -38,7 +38,8 @@ model Center {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
   classes        ClassGroup[]
-  
+  expenses       Expense[]
+
   users          User[]       @relation("CenterUsers")
 
   createdAt      DateTime     @default(now())
@@ -47,7 +48,7 @@ model Center {
 
 model User {
   id             String       @id @default(uuid())
-  matricule      String?
+  matricule      String       @unique
   firstName      String
   lastName       String
   email          String       @unique
@@ -190,6 +191,9 @@ model Expense {
 
   recordedById   String
   recordedBy     User         @relation(fields: [recordedById], references: [id])
+
+  centerId       String
+  center         Center       @relation(fields: [centerId], references: [id], onDelete: Cascade)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

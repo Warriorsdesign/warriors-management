@@ -3,13 +3,18 @@ import { withApiRoute } from '@/lib/api/handler';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { createClassSchema } from '@/lib/validation/classes';
 import { computeClassStatus, getActiveStudentsForClass } from '@/lib/business/classStatus';
+import { parseCenterIds } from '@/lib/api/centerFilter';
 
 export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
   const formationId = searchParams.get('formationId') ?? undefined;
-  const centerId = searchParams.get('centerId') ?? undefined;
+  const centerIds = parseCenterIds(searchParams);
 
   const classes = await tx.classGroup.findMany({
-    where: { organizationId: orgId, ...(formationId ? { formationId } : {}), ...(centerId ? { centerId } : {}) },
+    where: {
+      organizationId: orgId,
+      ...(formationId ? { formationId } : {}),
+      ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
+    },
     orderBy: { name: 'asc' },
   });
 

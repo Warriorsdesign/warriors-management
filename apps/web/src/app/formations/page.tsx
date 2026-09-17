@@ -20,7 +20,8 @@ import type { FormationDTO } from "@/lib/api/types";
 export default function FormationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebouncedValue(searchQuery);
-  const { formations, isLoading } = useFormations(debouncedSearch);
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
+  const { formations, isLoading } = useFormations({ search: debouncedSearch, centerId: selectedCenterIds });
   const { classes } = useClasses();
   const { centers } = useCenters();
   const canWrite = useCan("formations", "write");
@@ -49,7 +50,7 @@ export default function FormationsPage() {
   // Effectifs de la formation dépliée, chargés uniquement à la demande (évite de charger
   // tous les étudiants de l'organisation au premier rendu de la page).
   const { data: expandedStudents } = useStudents(
-    selectedFormationId ? { formationId: [selectedFormationId], pageSize: 100 } : null
+    selectedFormationId ? { formationId: [selectedFormationId], centerId: selectedCenterIds, pageSize: 100 } : null
   );
 
   React.useEffect(() => {

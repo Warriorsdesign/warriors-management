@@ -3,6 +3,7 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateExpenseSchema } from '@/lib/validation/expenses';
+import { ApiError } from '@/lib/api/errors';
 
 type Params = { id: string };
 
@@ -18,6 +19,10 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
   const expense = await findOrgScopedOrThrow(() =>
     tx.expense.findFirst({ where: { id: params.id, organizationId: orgId } })
   );
+  if (body.centerId) {
+    const center = await tx.center.findFirst({ where: { id: body.centerId, organizationId: orgId } });
+    if (!center) throw new ApiError(400, 'Centre introuvable.', 'CENTER_NOT_FOUND');
+  }
   const updated = await tx.expense.update({
     where: { id: expense.id },
     data: { ...body, date: body.date ? new Date(body.date) : undefined },

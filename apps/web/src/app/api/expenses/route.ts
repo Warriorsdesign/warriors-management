@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { createExpenseSchema } from '@/lib/validation/expenses';
+import { parseCenterIds } from '@/lib/api/centerFilter';
+import { ApiError } from '@/lib/api/errors';
 
 export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   const category = searchParams.get('category') ?? undefined;
   const search = searchParams.get('search')?.trim();
   const from = searchParams.get('from');
   const to = searchParams.get('to');
+  const centerIds = parseCenterIds(searchParams);
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '10', 10) || 10));
 
@@ -15,6 +18,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
     organizationId: orgId,
     ...(category ? { category } : {}),
     ...(search ? { title: { contains: search, mode: 'insensitive' as const } } : {}),
+    ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
     ...(from || to
       ? { date: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
       : {}),
@@ -24,7 +28,10 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
     tx.expense.count({ where }),
     tx.expense.findMany({
       where,
-      include: { recordedBy: { select: { firstName: true, lastName: true } } },
+      include: {
+        recordedBy: { select: { firstName: true, lastName: true } },
+        center: { select: { id: true, name: true } },
+      },
       orderBy: { date: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -36,6 +43,10 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
 
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const body = createExpenseSchema.parse(await req.json());
+
+  const center = await tx.center.findFirst({ where: { id: body.centerId, organizationId: orgId } });
+  if (!center) throw new ApiError(400, 'Centre introuvable.', 'CENTER_NOT_FOUND');
+
   const expense = await tx.expense.create({
     data: {
       title: body.title,
@@ -43,6 +54,7 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
       date: new Date(body.date),
       category: body.category,
       description: body.description,
+      centerId: body.centerId,
       recordedById: userId,
       organizationId: orgId,
     },

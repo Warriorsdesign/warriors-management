@@ -13,11 +13,16 @@ function inRange(date: Date, range: DateRange): boolean {
   return true;
 }
 
-export async function getReportsSummary(tx: TenantClient, orgId: string, range: DateRange) {
+export async function getReportsSummary(tx: TenantClient, orgId: string, range: DateRange, centerIds: string[] = []) {
+  const studentCenterWhere = centerIds.length ? { classGroup: { centerId: { in: centerIds } } } : {};
+  const viaStudentCenterWhere = centerIds.length
+    ? { student: { classGroup: { centerId: { in: centerIds } } } }
+    : {};
+
   const [students, payments, expenses] = await Promise.all([
-    tx.student.findMany({ where: { organizationId: orgId } }),
-    tx.payment.findMany({ where: { organizationId: orgId } }),
-    tx.expense.findMany({ where: { organizationId: orgId } }),
+    tx.student.findMany({ where: { organizationId: orgId, ...studentCenterWhere } }),
+    tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
+    tx.expense.findMany({ where: { organizationId: orgId, ...(centerIds.length ? { centerId: { in: centerIds } } : {}) } }),
   ]);
 
   const totalActiveStudents = students.filter((s) => !INACTIVE_STATUSES.includes(s.currentStatus)).length;
@@ -34,11 +39,19 @@ export async function getReportsSummary(tx: TenantClient, orgId: string, range: 
   };
 }
 
-export async function getFormationReports(tx: TenantClient, orgId: string, range: DateRange) {
+export async function getFormationReports(tx: TenantClient, orgId: string, range: DateRange, centerIds: string[] = []) {
+  const studentCenterWhere = centerIds.length ? { classGroup: { centerId: { in: centerIds } } } : {};
+  const viaStudentCenterWhere = centerIds.length
+    ? { student: { classGroup: { centerId: { in: centerIds } } } }
+    : {};
+
   const [formations, students, payments] = await Promise.all([
     tx.formation.findMany({ where: { organizationId: orgId } }),
-    tx.student.findMany({ where: { organizationId: orgId }, include: { classGroup: { select: { formationId: true } } } }),
-    tx.payment.findMany({ where: { organizationId: orgId } }),
+    tx.student.findMany({
+      where: { organizationId: orgId, ...studentCenterWhere },
+      include: { classGroup: { select: { formationId: true } } },
+    }),
+    tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
   ]);
 
   return formations.map((f) => {
@@ -69,14 +82,23 @@ function monthLabel(date: Date): string {
   return date.toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '');
 }
 
-export async function getFinanceSeries(tx: TenantClient, orgId: string, range: DateRange) {
+export async function getFinanceSeries(tx: TenantClient, orgId: string, range: DateRange, centerIds: string[] = []) {
   const now = new Date();
   const from = range.from ?? new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const to = range.to ?? now;
+  const viaStudentCenterWhere = centerIds.length
+    ? { student: { classGroup: { centerId: { in: centerIds } } } }
+    : {};
 
   const [payments, expenses] = await Promise.all([
-    tx.payment.findMany({ where: { organizationId: orgId, date: { gte: from, lte: to } } }),
-    tx.expense.findMany({ where: { organizationId: orgId, date: { gte: from, lte: to } } }),
+    tx.payment.findMany({ where: { organizationId: orgId, date: { gte: from, lte: to }, ...viaStudentCenterWhere } }),
+    tx.expense.findMany({
+      where: {
+        organizationId: orgId,
+        date: { gte: from, lte: to },
+        ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
+      },
+    }),
   ]);
 
   const months: { key: string; label: string }[] = [];

@@ -4,7 +4,7 @@ import type { ClassDTO, CreateClassInput, UpdateClassInput } from '@/lib/api/typ
 
 const KEY = '/api/classes';
 
-export function useClasses(params?: { formationId?: string; centerId?: string }) {
+export function useClasses(params?: { formationId?: string; centerId?: string[] }) {
   const key = `${KEY}${toQueryString({ formationId: params?.formationId, centerId: params?.centerId })}`;
   const { data, error, isLoading } = useSWR<{ data: ClassDTO[] }>(key);
   return { classes: data?.data ?? [], error, isLoading };

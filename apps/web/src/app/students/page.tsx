@@ -28,10 +28,13 @@ export default function StudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
+
   const { data: currentStudents, meta, isLoading } = useStudents({
     search: debouncedSearch,
     formationId: selectedFormations,
     status: selectedStatuses as StudentStatus[],
+    centerId: selectedCenterIds,
     page: currentPage,
     pageSize: itemsPerPage,
   });
@@ -73,7 +76,7 @@ export default function StudentsPage() {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, selectedFormations, selectedStatuses]);
+  }, [debouncedSearch, selectedFormations, selectedStatuses, selectedCenterIds]);
 
   const getStudentStatusBadge = (status: string) => {
     switch (status) {

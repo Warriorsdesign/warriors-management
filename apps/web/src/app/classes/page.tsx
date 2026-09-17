@@ -16,7 +16,8 @@ import type { ClassDTO } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 export default function ClassesPage() {
-  const { classes, isLoading } = useClasses();
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
+  const { classes, isLoading } = useClasses({ centerId: selectedCenterIds });
   const { formations } = useFormations();
   const { centers } = useCenters();
   const canWrite = useCan("classes", "write");

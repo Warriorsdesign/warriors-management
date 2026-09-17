@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withApiRoute } from '@/lib/api/handler';
+import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { createUserSchema } from '@/lib/validation/users';
 import { generateUserMatricule, generateRandomPassword } from '@/lib/business/matricule';
@@ -34,7 +35,10 @@ export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createUserSchema.parse(await req.json());
 
-  const matricule = await generateUserMatricule(tx, orgId);
+  const organization = await findOrgScopedOrThrow(() =>
+    tx.organization.findFirst({ where: { id: orgId }, select: { name: true } })
+  );
+  const matricule = await generateUserMatricule(organization.name);
   const provisionalPassword = generateRandomPassword();
   const passwordHash = await bcrypt.hash(provisionalPassword, 10);
 

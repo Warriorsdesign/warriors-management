@@ -27,8 +27,13 @@ export default function PaymentsPage() {
   const canWrite = useCan("payments", "write");
 
   const debouncedSearch = useDebouncedValue(searchQuery);
-  const { data: payments, meta, isLoading } = usePayments({ search: debouncedSearch, page, pageSize: 10 });
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
+  const { data: payments, meta, isLoading } = usePayments({ search: debouncedSearch, centerId: selectedCenterIds, page, pageSize: 10 });
   const { data: students } = useStudents({ pageSize: 100 });
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [selectedCenterIds]);
 
   const [formData, setFormData] = useState({
     studentId: "",

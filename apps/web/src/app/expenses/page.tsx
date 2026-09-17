@@ -8,7 +8,8 @@ import { Select } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useExpenses, createExpense, updateExpense, deleteExpense } from "@/lib/hooks/useExpenses";
-import { useCan } from "@/lib/hooks/useSession";
+import { useCan, useSession } from "@/lib/hooks/useSession";
+import { useCenters } from "@/lib/hooks/useCenters";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
@@ -29,19 +30,32 @@ export default function ExpensesPage() {
   const [page, setPage] = useState(1);
   const canWrite = useCan("expenses", "write");
 
+  const { user } = useSession();
+  const { centers: allCenters } = useCenters();
+  // Un utilisateur rattaché à des centres spécifiques ne peut enregistrer une dépense
+  // que pour l'un d'eux ; un ADMIN sans centre assigné voit tous les centres de l'org.
+  const userCenters = user?.centers?.length ? user.centers : allCenters.map(c => ({ id: c.id, name: c.name }));
+
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
   const debouncedSearch = useDebouncedValue(searchQuery);
   const { data: expenses, meta, isLoading } = useExpenses({
     search: debouncedSearch,
     category: selectedCategory !== "Toutes" ? (selectedCategory as ExpenseCategory) : undefined,
+    centerId: selectedCenterIds,
     page,
     pageSize: 10,
   });
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [selectedCenterIds]);
 
   const [formData, setFormData] = useState({
     title: "",
     amount: "",
     date: new Date().toISOString().split('T')[0],
     category: "Loyer" as ExpenseCategory,
+    centerId: "",
   });
 
   React.useEffect(() => {
@@ -61,6 +75,7 @@ export default function ExpensesPage() {
       amount: "",
       date: new Date().toISOString().split('T')[0],
       category: "Loyer",
+      centerId: userCenters.length > 0 ? userCenters[0].id : "",
     });
     setIsModalOpen(true);
   };
@@ -73,6 +88,7 @@ export default function ExpensesPage() {
       amount: e.amount.toString(),
       date: e.date.split('T')[0],
       category: e.category,
+      centerId: e.centerId,
     });
     setIsModalOpen(true);
   };
@@ -83,6 +99,7 @@ export default function ExpensesPage() {
     const newErrors: Record<string, string> = {};
     if (!formData.title.trim()) newErrors.title = "Veuillez renseigner ce champ.";
     if (!formData.amount || parseInt(formData.amount) <= 0) newErrors.amount = "Veuillez renseigner un montant valide.";
+    if (!formData.centerId) newErrors.centerId = "Veuillez sélectionner un centre.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -97,6 +114,7 @@ export default function ExpensesPage() {
         amount: parseInt(formData.amount, 10),
         date: formData.date,
         category: formData.category,
+        centerId: formData.centerId,
       };
       if (editingExpense) {
         await updateExpense(editingExpense.id, payload);
@@ -187,17 +205,19 @@ export default function ExpensesPage() {
                   <th className="px-6 py-3 font-medium">Motif</th>
                   <th className="px-6 py-3 font-medium">Date</th>
                   <th className="px-6 py-3 font-medium">Catégorie</th>
+                  <th className="px-6 py-3 font-medium">Centre</th>
                   <th className="px-6 py-3 font-medium">Enregistré par</th>
                   <th className="px-6 py-3 font-medium text-right">Montant</th>
                   {canWrite && <th className="px-6 py-3 font-medium w-16"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {isLoading ? <TableSkeleton rows={6} columns={canWrite ? 6 : 5} /> : expenses.map((e) => (
+                {isLoading ? <TableSkeleton rows={6} columns={canWrite ? 7 : 6} /> : expenses.map((e) => (
                   <tr key={e.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-6 py-4 font-medium text-foreground">{e.title}</td>
                     <td className="px-6 py-4 text-muted-foreground">{new Date(e.date).toLocaleDateString('fr-FR')}</td>
                     <td className="px-6 py-4 text-muted-foreground">{e.category}</td>
+                    <td className="px-6 py-4 text-muted-foreground">{e.center?.name ?? '-'}</td>
                     <td className="px-6 py-4 text-muted-foreground">
                       {e.recordedBy ? `${e.recordedBy.firstName} ${e.recordedBy.lastName}` : '-'}
                     </td>
@@ -338,6 +358,22 @@ export default function ExpensesPage() {
                 onChange={(d) => setFormData({ ...formData, date: d ? d.toISOString().split('T')[0] : "" })}
               />
             </div>
+          </div>
+
+          <div className="space-y-2 relative z-30">
+            <label className="text-sm font-medium">Centre</label>
+            <Select
+              options={userCenters.map(c => ({ label: c.name, value: c.id }))}
+              value={formData.centerId}
+              onChange={(val) => {
+                setFormData({ ...formData, centerId: val });
+                if (errors.centerId) setErrors({ ...errors, centerId: '' });
+              }}
+              placeholder="Sélectionner un centre"
+              disabled={userCenters.length <= 1}
+              className={errors.centerId ? "border-red-500 animate-shake" : ""}
+            />
+            {errors.centerId && <p className="text-xs text-red-500 mt-1">{errors.centerId}</p>}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-border mt-6">

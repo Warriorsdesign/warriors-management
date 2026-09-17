@@ -1,5 +1,5 @@
 "use client"
-import React, { useState } from "react";
+import React from "react";
 import { Search, Bell, Menu } from "lucide-react";
 import { useCenters } from "@/lib/hooks/useCenters";
 import { Badge } from "@/components/ui/badge";
@@ -10,13 +10,14 @@ import { MultiSelect } from "@/components/ui/multi-select";
 
 export function Topbar() {
   const toggleMobileMenu = useUIStore(state => state.toggleMobileMenu);
+  const selectedCenters = useUIStore(state => state.selectedCenterIds);
+  const setSelectedCenters = useUIStore(state => state.setSelectedCenterIds);
   const pathname = usePathname();
   const isDashboard = pathname === "/";
 
   const { user: userProfile } = useSession();
   const { centers } = useCenters();
 
-  const [selectedCenters, setSelectedCenters] = useState<string[]>([]);
   const centerOptions = centers.map(c => ({ label: c.name, value: c.id }));
 
   const isAdminView = pathname.startsWith('/centers') || pathname.startsWith('/users') || pathname.startsWith('/settings');

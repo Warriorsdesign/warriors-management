@@ -8,6 +8,7 @@ const KEY = '/api/expenses';
 export interface UseExpensesParams {
   search?: string;
   category?: ExpenseCategory;
+  centerId?: string[];
   from?: string;
   to?: string;
   page?: number;

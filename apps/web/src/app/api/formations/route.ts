@@ -4,13 +4,16 @@ import { withApiRoute } from '@/lib/api/handler';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { createFormationSchema } from '@/lib/validation/formations';
 import { regenerateLevels } from '@/lib/business/formations';
+import { parseCenterIds, formationClassesCenterWhere } from '@/lib/api/centerFilter';
 
 export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
   const search = searchParams.get('search')?.trim();
+  const centerIds = parseCenterIds(searchParams);
   const formations = await tx.formation.findMany({
     where: {
       organizationId: orgId,
       ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+      ...formationClassesCenterWhere(centerIds),
     },
     orderBy: { name: 'asc' },
   });

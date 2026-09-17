@@ -12,6 +12,7 @@ export interface UseStudentsParams {
   search?: string;
   formationId?: string[];
   status?: StudentStatus[];
+  centerId?: string[];
   page?: number;
   pageSize?: number;
 }
@@ -22,6 +23,7 @@ export function useStudents(params: UseStudentsParams | null) {
         search: params.search,
         formationId: params.formationId,
         status: params.status,
+        centerId: params.centerId,
         page: params.page,
         pageSize: params.pageSize,
       })}`

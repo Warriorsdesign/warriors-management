@@ -5,23 +5,23 @@ import { signToken } from '@/lib/auth/jwt';
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const { matricule, password } = await request.json();
 
-    if (!email || !password) {
+    if (!matricule || !password) {
       return NextResponse.json(
-        { error: 'Email and password are required' },
+        { error: 'Matricule et mot de passe requis.' },
         { status: 400 }
       );
     }
 
     // Use authPrisma which runs with app_auth role, allowing read access to Users regardless of RLS
     const user = await authPrisma.user.findUnique({
-      where: { email },
+      where: { matricule },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Matricule ou mot de passe incorrect.' },
         { status: 401 }
       );
     }
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Matricule ou mot de passe incorrect.' },
         { status: 401 }
       );
     }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     // Check if the user is active
     if (user.status !== 'actif') {
       return NextResponse.json(
-        { error: 'Account is inactive' },
+        { error: 'Ce compte est désactivé.' },
         { status: 403 }
       );
     }

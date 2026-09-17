@@ -2,7 +2,7 @@
 import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Lock, Mail, Loader2, ShieldCheck } from "lucide-react";
+import { Lock, IdCard, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
 
@@ -10,8 +10,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState("");
+  const [matricule, setMatricule] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -24,7 +25,7 @@ function LoginForm() {
     try {
       await apiFetch("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ matricule, password }),
       });
       router.push(searchParams.get("redirect") ?? "/");
       router.refresh();
@@ -60,15 +61,15 @@ function LoginForm() {
           )}
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Adresse Email</label>
+            <label className="text-sm font-medium text-foreground">Matricule</label>
             <div className="relative group">
-              <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
+              <IdCard className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                value={matricule}
+                onChange={e => setMatricule(e.target.value.toUpperCase())}
                 required
-                placeholder="admin@warriors.edu"
+                placeholder="Entrer votre matricule"
                 className="w-full pl-9 pr-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-background"
               />
             </div>
@@ -81,13 +82,21 @@ function LoginForm() {
             <div className="relative group">
               <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full pl-9 pr-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-background"
+                className="w-full pl-9 pr-9 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all bg-background"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                tabIndex={-1}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 

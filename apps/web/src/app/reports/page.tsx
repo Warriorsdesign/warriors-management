@@ -19,6 +19,7 @@ import {
 } from "recharts";
 import { useReportsSummary, useFormationReports, useFinanceSeries } from "@/lib/hooks/useReports";
 import { useDashboardStats } from "@/lib/hooks/useDashboardStats";
+import { useUIStore } from "@/lib/store/useUIStore";
 import { DatePicker } from "@/components/ui/date-picker";
 import { KpiCardSkeleton, ChartSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -27,12 +28,13 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("Vue générale");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
 
   const range = { from: startDate?.toISOString(), to: endDate?.toISOString() };
-  const { summary, isLoading: isLoadingSummary } = useReportsSummary(range);
-  const { formationReports, isLoading: isLoadingFormations } = useFormationReports(range);
-  const { financeSeries, isLoading: isLoadingFinance } = useFinanceSeries(range);
-  const { stats: dashboardStats } = useDashboardStats();
+  const { summary, isLoading: isLoadingSummary } = useReportsSummary(range, selectedCenterIds);
+  const { formationReports, isLoading: isLoadingFormations } = useFormationReports(range, selectedCenterIds);
+  const { financeSeries, isLoading: isLoadingFinance } = useFinanceSeries(range, selectedCenterIds);
+  const { stats: dashboardStats } = useDashboardStats({ centerId: selectedCenterIds });
   const isLoading = isLoadingSummary || isLoadingFormations || isLoadingFinance;
 
   const totalActiveStudents = summary?.totalActiveStudents ?? 0;

@@ -4,7 +4,10 @@ import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 
 export const GET = withApiRoute(async (_req, { tx, orgId, userId }) => {
   const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: userId, organizationId: orgId } })
+    tx.user.findFirst({
+      where: { id: userId, organizationId: orgId },
+      include: { centers: { select: { id: true, name: true } } },
+    })
   );
   const organization = await findOrgScopedOrThrow(() =>
     tx.organization.findFirst({ where: { id: orgId } })
@@ -20,6 +23,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, userId }) => {
       roles: user.roles,
       status: user.status,
       avatarUrl: user.avatarUrl,
+      centers: user.centers,
     },
     organization: {
       id: organization.id,

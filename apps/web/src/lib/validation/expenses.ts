@@ -10,6 +10,7 @@ export const createExpenseSchema = z.object({
   date: z.string().min(1, 'La date est requise.'),
   category: expenseCategorySchema,
   description: z.string().trim().optional(),
+  centerId: z.string().min(1, 'Le centre est requis.'),
 });
 
 export const updateExpenseSchema = z.object({
@@ -18,4 +19,5 @@ export const updateExpenseSchema = z.object({
   date: z.string().optional(),
   category: expenseCategorySchema.optional(),
   description: z.string().trim().optional(),
+  centerId: z.string().min(1).optional(),
 });

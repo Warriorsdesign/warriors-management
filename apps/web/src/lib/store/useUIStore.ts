@@ -10,6 +10,8 @@ interface UIState {
   toastType: 'success' | 'error' | null;
   showToast: (message: string, type?: 'success' | 'error') => void;
   hideToast: () => void;
+  selectedCenterIds: string[];
+  setSelectedCenterIds: (ids: string[]) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -22,4 +24,6 @@ export const useUIStore = create<UIState>((set) => ({
   toastType: null,
   showToast: (message, type = 'success') => set({ toastMessage: message, toastType: type }),
   hideToast: () => set({ toastMessage: null, toastType: null }),
+  selectedCenterIds: [],
+  setSelectedCenterIds: (ids) => set({ selectedCenterIds: ids }),
 }));

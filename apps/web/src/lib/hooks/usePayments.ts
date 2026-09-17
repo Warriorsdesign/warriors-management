@@ -7,6 +7,7 @@ const KEY = '/api/payments';
 export interface UsePaymentsParams {
   studentId?: string;
   search?: string;
+  centerId?: string[];
   page?: number;
   pageSize?: number;
 }

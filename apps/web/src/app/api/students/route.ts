@@ -5,11 +5,13 @@ import { createStudentSchema } from '@/lib/validation/students';
 import { generateStudentMatricule } from '@/lib/business/matricule';
 import { buildInitialSchedule, rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 import { ApiError } from '@/lib/api/errors';
+import { parseCenterIds } from '@/lib/api/centerFilter';
 
 export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   const search = searchParams.get('search')?.trim();
   const formationIds = searchParams.getAll('formationId');
   const statuses = searchParams.getAll('status');
+  const centerIds = parseCenterIds(searchParams);
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '10', 10) || 10));
 
@@ -24,7 +26,14 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
           ],
         }
       : {}),
-    ...(formationIds.length ? { classGroup: { formationId: { in: formationIds } } } : {}),
+    ...(formationIds.length || centerIds.length
+      ? {
+          classGroup: {
+            ...(formationIds.length ? { formationId: { in: formationIds } } : {}),
+            ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
+          },
+        }
+      : {}),
     ...(statuses.length ? { currentStatus: { in: statuses } } : {}),
   };
 
