@@ -1,11 +1,9 @@
 import type { Prisma } from '@prisma/client';
 import type { TenantClient } from '@/lib/db';
 import type { Installment } from './paymentSchedule';
-import type { ResolvedPeriod } from '@/lib/api/periodRange';
-import { getFinanceSeries } from './reports';
+import { dayKey, periodDays, type ResolvedPeriod } from '@/lib/api/periodRange';
 
 const INACTIVE_STATUSES = ['formation_terminee', 'abandonne'];
-const ENTRY_STATUSES = ['nouvel_inscrit', 'reinscrit'];
 
 function inRange(date: Date, from: Date, to: Date): boolean {
   return date >= from && date <= to;
@@ -122,9 +120,13 @@ export async function getDashboardStats(
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   // --- Flux d'étudiants (période sélectionnée) ---
-  const isEntry = (s: (typeof students)[number]) =>
-    ENTRY_STATUSES.includes(s.currentStatus) || inRange(s.enrollmentDate, period.from, period.to);
-  const isExit = (s: (typeof students)[number]) => INACTIVE_STATUSES.includes(s.currentStatus);
+  // Entrée : inscription datée dans la période. Sortie : passage à un statut de sortie
+  // (formation terminée, abandon) enregistré dans la période (historique de progression).
+  const isEntry = (s: (typeof students)[number]) => inRange(s.enrollmentDate, period.from, period.to);
+  const isExit = (s: (typeof students)[number]) => {
+    const logs = (s.progressionLogs as { date: string; status: string }[] | null) ?? [];
+    return logs.some((l) => INACTIVE_STATUSES.includes(l.status) && inRange(new Date(l.date), period.from, period.to));
+  };
 
   const entries = students.filter(isEntry).length;
   const exits = students.filter(isExit).length;
@@ -160,10 +162,25 @@ export async function getDashboardStats(
     .map(([category, amount]) => ({ category, amount }))
     .sort((a, b) => b.amount - a.amount);
 
-  // --- Tendance financière 6 mois glissants (réutilise getFinanceSeries, déjà centerIds-aware) ---
-  const financeRangeFrom = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-  const rawFinanceSeries = await getFinanceSeries(tx, orgId, { from: financeRangeFrom, to: now }, centerIds);
-  const financeSeries = rawFinanceSeries.map((p) => ({ ...p, net: p.revenue - p.expenses }));
+  // --- Courbe financière jour par jour sur la période filtrée (mêmes filtres centre/formation
+  // que les indicateurs). Calculée à partir des paiements/dépenses déjà chargés.
+  const revenueByDay = new Map<string, number>();
+  for (const p of payments) {
+    if (!inRange(p.date, period.from, period.to)) continue;
+    const key = dayKey(p.date, period.offsetMinutes);
+    revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + p.amount);
+  }
+  const expensesByDay = new Map<string, number>();
+  for (const e of expenses) {
+    if (!inRange(e.date, period.from, period.to)) continue;
+    const key = dayKey(e.date, period.offsetMinutes);
+    expensesByDay.set(key, (expensesByDay.get(key) ?? 0) + e.amount);
+  }
+  const financeSeries = periodDays(period, now).map(({ key, label, fullLabel }) => {
+    const dayRevenue = revenueByDay.get(key) ?? 0;
+    const dayExpenses = expensesByDay.get(key) ?? 0;
+    return { day: key, label, fullLabel, revenue: dayRevenue, expenses: dayExpenses, net: dayRevenue - dayExpenses };
+  });
 
   // --- Dernières transactions (paiements + dépenses fusionnés) ---
   const recentTransactions = [

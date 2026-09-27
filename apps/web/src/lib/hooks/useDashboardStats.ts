@@ -5,7 +5,7 @@ import type { DashboardStatsDTO } from '@/lib/api/types';
 export interface UseDashboardStatsParams {
   centerId?: string[];
   formationId?: string[];
-  period?: 'this_month' | 'last_month' | 'quarter' | 'year' | 'custom';
+  period?: 'today' | 'this_month' | 'last_month' | 'quarter' | 'year' | 'custom';
   from?: string;
   to?: string;
 }
@@ -17,6 +17,8 @@ export function useDashboardStats(params: UseDashboardStatsParams = {}) {
     period: params.period,
     from: params.from,
     to: params.to,
+    // Fuseau du navigateur : le serveur découpe les journées à l'heure locale de l'utilisateur.
+    tz: -new Date().getTimezoneOffset(),
   })}`;
   const { data, error, isLoading } = useSWR<DashboardStatsDTO>(key);
   return { stats: data, error, isLoading };

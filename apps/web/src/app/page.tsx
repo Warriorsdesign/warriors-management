@@ -22,9 +22,16 @@ import {
 import { KpiCardSkeleton, ChartSkeleton, Skeleton } from "@/components/ui/skeleton";
 import type { DashboardStatsDTO } from "@/lib/api/types";
 
-type PeriodType = "this_month" | "last_month" | "quarter" | "year" | "custom";
+type PeriodType = "today" | "this_month" | "last_month" | "quarter" | "year" | "custom";
+
+/** Jour local "AAAA-MM-JJ" d'une date choisie dans le sélecteur (sans conversion UTC). */
+function toLocalDay(d: Date | undefined): string | undefined {
+  if (!d) return undefined;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 const PERIOD_TABS: { value: PeriodType; label: string }[] = [
+  { value: "today", label: "Aujourd'hui" },
   { value: "this_month", label: "Ce mois" },
   { value: "last_month", label: "Mois précédent" },
   { value: "quarter", label: "Trimestre" },
@@ -70,7 +77,8 @@ export default function DashboardPage() {
   const { centers } = useCenters();
   const { formations } = useFormations();
 
-  const [periodType, setPeriodType] = useState<PeriodType>("this_month");
+  // Par défaut : les chiffres de la journée ; le filtre de période élargit ensuite.
+  const [periodType, setPeriodType] = useState<PeriodType>("today");
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
   const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
   const [selectedFormationIds, setSelectedFormationIds] = useState<string[]>([]);
@@ -82,8 +90,8 @@ export default function DashboardPage() {
     centerId: selectedCenterIds,
     formationId: selectedFormationIds,
     period: periodType,
-    from: periodType === "custom" ? customFrom?.toISOString() : undefined,
-    to: periodType === "custom" ? customTo?.toISOString() : undefined,
+    from: periodType === "custom" ? toLocalDay(customFrom) : undefined,
+    to: periodType === "custom" ? toLocalDay(customTo) : undefined,
   });
 
   const centerSummary = useMemo(() => {
@@ -95,7 +103,7 @@ export default function DashboardPage() {
   const formationOptions = formations.map((f) => ({ label: f.name, value: f.id }));
 
   const handleReset = () => {
-    setPeriodType("this_month");
+    setPeriodType("today");
     setCustomFrom(undefined);
     setCustomTo(undefined);
     setSelectedFormationIds([]);
@@ -334,7 +342,7 @@ export default function DashboardPage() {
         <Card className="col-span-1 lg:col-span-2 shadow-none border border-border rounded-xl flex flex-col">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Finances</CardTitle>
-            <CardDescription className="text-xs">CA encaissé, dépenses et résultat net</CardDescription>
+            <CardDescription className="text-xs">CA encaissé, dépenses et résultat net, jour par jour · {stats.period.label}</CardDescription>
           </CardHeader>
           <CardContent className="flex-1">
             <div className="h-[280px] w-full">
@@ -342,17 +350,29 @@ export default function DashboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={stats.financeSeries} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} dy={10} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} dy={10} interval="preserveStartEnd" minTickGap={24} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${v / 1000}k`} />
-                    <Tooltip formatter={(value: any) => `${new Intl.NumberFormat('fr-FR').format(value)} FCFA`} contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }} />
+                    <Tooltip
+                      formatter={(value: any) => `${new Intl.NumberFormat('fr-FR').format(value)} FCFA`}
+                      labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullLabel ?? _label}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                    />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                    <Bar dataKey="revenue" name="CA encaissé" fill="#334155" radius={[4, 4, 0, 0]} barSize={18} />
-                    <Bar dataKey="expenses" name="Dépenses" fill="#fda4af" radius={[4, 4, 0, 0]} barSize={18} />
-                    <Line type="monotone" dataKey="net" name="Résultat net" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} />
+                    {/* Largeur des barres adaptée au nombre de jours (1 jour à 1 an) */}
+                    <Bar dataKey="revenue" name="CA encaissé" fill="#334155" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    <Bar dataKey="expenses" name="Dépenses" fill="#fda4af" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    <Line
+                      type="monotone"
+                      dataKey="net"
+                      name="Résultat net"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={stats.financeSeries.length <= 31 ? { r: 3, fill: '#10b981' } : false}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune activité financière sur les 6 derniers mois</div>
+                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">Aucune activité financière sur la période ({stats.period.label})</div>
               )}
             </div>
           </CardContent>

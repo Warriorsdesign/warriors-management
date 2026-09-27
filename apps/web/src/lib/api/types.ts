@@ -389,7 +389,8 @@ export interface DashboardStatsDTO {
     net: number; effectif: number; resteAEncaisser: number;
   }[];
   expensesByCategory: { category: string; amount: number }[];
-  financeSeries: { month: string; label: string; revenue: number; expenses: number; net: number }[];
+  /** Un point par jour de la période filtrée (jours futurs exclus). */
+  financeSeries: { day: string; label: string; fullLabel: string; revenue: number; expenses: number; net: number }[];
   recentTransactions: {
     id: string; type: 'payment' | 'expense'; label: string; subtitle: string;
     date: string; amount: number;
