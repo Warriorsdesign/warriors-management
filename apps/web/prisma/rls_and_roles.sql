@@ -44,6 +44,10 @@ ALTER TABLE "Payment"          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Payment"          FORCE  ROW LEVEL SECURITY;
 ALTER TABLE "Expense"          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Expense"          FORCE  ROW LEVEL SECURITY;
+ALTER TABLE "Subscription"     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "Subscription"     FORCE  ROW LEVEL SECURITY;
+ALTER TABLE "AuditLog"         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "AuditLog"         FORCE  ROW LEVEL SECURITY;
 
 -- 3. Politiques d'isolation tenant pour `app_user`.
 --    app.org_id est injecté par withTenantContext() via set_config() à chaque transaction.
@@ -102,6 +106,17 @@ CREATE POLICY tenant_isolation_expense ON "Expense"
   FOR ALL TO app_user
   USING ("organizationId" = current_setting('app.org_id', true))
   WITH CHECK ("organizationId" = current_setting('app.org_id', true));
+
+DROP POLICY IF EXISTS tenant_isolation_subscription ON "Subscription";
+CREATE POLICY tenant_isolation_subscription ON "Subscription"
+  FOR ALL TO app_user
+  USING ("organizationId" = current_setting('app.org_id', true))
+  WITH CHECK ("organizationId" = current_setting('app.org_id', true));
+
+DROP POLICY IF EXISTS tenant_auditlog_insert ON "AuditLog";
+CREATE POLICY tenant_auditlog_insert ON "AuditLog"
+  FOR INSERT TO app_user
+  WITH CHECK (true);
 
 -- 3bis. Table de jonction implicite Prisma pour Center.users <-> User.centers ("A"=Center.id, "B"=User.id).
 --       Pas de colonne organizationId propre : on résout via la table Center liée.

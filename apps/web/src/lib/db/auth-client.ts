@@ -15,7 +15,7 @@ export const authPrisma =
   globalForAuthPrisma.authPrisma || new PrismaClient({
     datasources: {
       db: {
-        url: process.env.AUTH_DATABASE_URL, // Surcharge l'URL par défaut de schema.prisma
+        url: process.env.DATABASE_URL, // Surcharge provisoire vers l'URL principale suite aux timeouts du pooler Supabase sur app_auth
       },
     },
   });

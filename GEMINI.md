@@ -68,3 +68,12 @@ Afin de rendre cette application 100% fonctionnelle avec un vrai backend, la bas
 4. **Code & Qualité :**
    - Produire un TypeScript rigoureux, sans variables inutilisées.
    - Utiliser `<Link>` de `next/link` pour toute navigation inter-page afin de préserver le state.
+
+## 7. Back-Office Super Administrateur (Gouvernance Plateforme)
+L'application intègre un espace Back-Office dédié à la gouvernance globale de Warriors Management :
+- **Point d'accès :** `/admin/login` (séparé hermétiquement du `/login` client).
+- **Cookie dédié :** `admin_auth_token` (distinct du cookie client `auth_token`).
+- **Cloisonnement Middleware :** `src/middleware.ts` empêche tout utilisateur client d'accéder à `/admin/*` ou `/api/admin/*`.
+- **Agrégation globale :** Utilisation de `adminPrisma` (`src/lib/db/admin.ts`) via `withAdminRoute` pour agréger les données multi-tenant (toutes organisations, utilisateurs globaux, abonnements, journal d'audit).
+- **Tables ajoutées :** `Subscription` (gestion des quotas et échéances de licence) et `AuditLog` (traçabilité inaltérable des actions sensibles).
+- **Suspension Organisation :** Tout compte d'une organisation dont le statut est `suspendu` est automatiquement bloqué à la connexion.

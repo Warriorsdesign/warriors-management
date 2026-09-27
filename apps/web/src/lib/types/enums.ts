@@ -17,3 +17,9 @@ export type PaymentMethod = 'Espèces' | 'Bank Transfer' | 'Mobile Money' | 'Vir
 export type ExpenseCategory = 'Loyer' | 'Salaires' | 'Équipement' | 'Électricité' | 'Internet' | 'Autre';
 
 export type ClassStatus = 'ouverte' | 'complete' | 'cloturee';
+
+export type OrganizationStatus = 'actif' | 'suspendu';
+
+export type SubscriptionPlan = 'STARTER' | 'PRO' | 'ENTERPRISE';
+
+export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'suspended';

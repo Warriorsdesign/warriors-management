@@ -3,7 +3,7 @@ import { withTenantContext, type TenantClient } from '@/lib/db';
 import { getRequestContext, type RequestContext } from '@/lib/auth/context';
 import { requireRole } from '@/lib/auth/guards';
 import type { Role } from '@/lib/auth/roles';
-import { toErrorResponse } from './errors';
+import { ApiError, toErrorResponse } from './errors';
 
 interface RouteCtx<P> extends RequestContext {
   tx: TenantClient;
@@ -26,14 +26,24 @@ export function withApiRoute<P = Record<string, string>>(
       const requestCtx = getRequestContext(req);
       if (opts?.allowedRoles) requireRole(requestCtx.roles, opts.allowedRoles);
 
-      return await withTenantContext(requestCtx.orgId, (tx) =>
-        handler(req, {
+      return await withTenantContext(requestCtx.orgId, async (tx) => {
+        // Vérification de la suspension de l'organisation (Phase 12, 13)
+        const org = await tx.organization.findUnique({
+          where: { id: requestCtx.orgId },
+          select: { status: true },
+        });
+
+        if (!org || org.status === 'suspendu') {
+          throw new ApiError(403, 'Votre organisation est suspendue. Accès refusé.', 'ORG_SUSPENDED');
+        }
+
+        return handler(req, {
           ...requestCtx,
           tx,
           params: routeArgs.params,
           searchParams: req.nextUrl.searchParams,
-        })
-      );
+        });
+      });
     } catch (err) {
       return toErrorResponse(err);
     }

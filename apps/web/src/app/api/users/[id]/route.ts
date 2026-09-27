@@ -30,6 +30,26 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     throw new ApiError(400, 'Le matricule ne peut pas être modifié.', 'MATRICULE_IMMUTABLE');
   }
 
+  // Vérification de l'auto-lockout (empêcher de retirer le dernier ADMIN)
+  if (body.roles !== undefined && !body.roles.includes('ADMIN') && user.roles.includes('ADMIN')) {
+    const adminCount = await tx.user.count({
+      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
+    });
+    if (adminCount <= 1) {
+      throw new ApiError(403, 'Impossible de retirer le rôle ADMIN. Vous êtes le dernier administrateur actif.', 'LAST_ADMIN');
+    }
+  }
+
+  // Empêcher la désactivation du dernier ADMIN
+  if (body.status === 'inactif' && user.status === 'actif' && user.roles.includes('ADMIN')) {
+    const adminCount = await tx.user.count({
+      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
+    });
+    if (adminCount <= 1) {
+      throw new ApiError(403, 'Impossible de désactiver le dernier administrateur actif.', 'LAST_ADMIN');
+    }
+  }
+
   const { centerIds, matricule: _ignored, ...rest } = body;
 
   const updated = await tx.user.update({
@@ -47,6 +67,17 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   const user = await findOrgScopedOrThrow(() =>
     tx.user.findFirst({ where: { id: params.id, organizationId: orgId } })
   );
+
+  // Empêcher la suppression du dernier ADMIN
+  if (user.roles.includes('ADMIN') && user.status === 'actif') {
+    const adminCount = await tx.user.count({
+      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
+    });
+    if (adminCount <= 1) {
+      throw new ApiError(403, 'Impossible de supprimer le dernier administrateur actif.', 'LAST_ADMIN');
+    }
+  }
+
   await tx.user.delete({ where: { id: user.id } });
   return NextResponse.json({ success: true });
 }, { allowedRoles: PERMISSIONS.users.write });

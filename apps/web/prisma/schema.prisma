@@ -15,6 +15,7 @@ model Organization {
   email     String?
   phone     String?
   address   String?
+  status    String   @default("actif") // "actif" | "suspendu"
   
   centers   Center[]
   users     User[]
@@ -24,6 +25,7 @@ model Organization {
   payments  Payment[]
   expenses  Expense[]
   schedules PaymentSchedule[]
+  subscription Subscription?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -47,26 +49,27 @@ model Center {
 }
 
 model User {
-  id             String       @id @default(uuid())
-  matricule      String       @unique
+  id             String        @id @default(uuid())
+  matricule      String        @unique
   firstName      String
   lastName       String
-  email          String       @unique
+  email          String        @unique
   passwordHash   String
   avatarUrl      String?
-  roles          String[]     // ["ADMIN", "GESTIONNAIRE", "COMPTABLE"]
-  status         String       @default("actif")
+  roles          String[]      // ["ADMIN", "GESTIONNAIRE", "COMPTABLE"]
+  isSuperAdmin   Boolean       @default(false)
+  status         String        @default("actif")
   
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
-  centers        Center[]     @relation("CenterUsers")
+  centers        Center[]      @relation("CenterUsers")
 
   payments       Payment[]
   expenses       Expense[]
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model Formation {
@@ -200,4 +203,54 @@ model Expense {
 
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+model Plan {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  price       Float    @default(0)
+  maxCenters  Int      @default(1)
+  maxStudents Int      @default(50)
+  isPopular   Boolean  @default(false)
+  features    Json?
+  
+  subscriptions Subscription[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Subscription {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  planId         String?
+  plan           Plan?        @relation(fields: [planId], references: [id])
+  
+  status         String       @default("trial")   // "active", "trial", "expired", "suspended"
+  startDate      DateTime     @default(now())
+  endDate        DateTime
+  maxCenters     Int          @default(3)
+  maxStudents    Int          @default(200)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  actorEmail  String
+  actorName   String
+  action      String   // e.g. "ORGANIZATION_CREATED", "ORGANIZATION_SUSPENDED", "ADMIN_LOGIN"
+  resource    String   // "Organization", "User", "Subscription", "Security"
+  resourceId  String?
+  details     Json?    // Metadata, previous/new values, IP, etc.
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([resource, resourceId])
+  @@index([createdAt])
 }

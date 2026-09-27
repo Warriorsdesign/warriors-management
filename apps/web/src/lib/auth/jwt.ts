@@ -27,3 +27,24 @@ export async function verifyToken(token: string): Promise<TokenPayload> {
   const { payload } = await jwtVerify(token, getSecret());
   return payload as unknown as TokenPayload;
 }
+
+export interface AdminTokenPayload {
+  userId: string;
+  email: string;
+  isSuperAdmin: boolean;
+  [key: string]: any;
+}
+
+export async function signAdminToken(payload: AdminTokenPayload): Promise<string> {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('12h') // Token Super Admin expires in 12 hours
+    .sign(getSecret());
+}
+
+export async function verifyAdminToken(token: string): Promise<AdminTokenPayload> {
+  const { payload } = await jwtVerify(token, getSecret());
+  return payload as unknown as AdminTokenPayload;
+}
+

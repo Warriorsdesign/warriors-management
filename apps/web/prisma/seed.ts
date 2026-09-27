@@ -22,7 +22,7 @@ export const TEST_PASSWORD = 'Password123!';
 async function cleanup() {
   const direct = new PrismaClient({ datasources: { db: { url: process.env.DIRECT_URL } } });
   const users = await direct.user.findMany({ where: { email: { in: TEST_ADMIN_EMAILS } } });
-  const orgIds = Array.from(new Set(users.map((u) => u.organizationId)));
+  const orgIds = Array.from(new Set(users.map((u) => u.organizationId).filter((id): id is string => Boolean(id))));
   if (orgIds.length > 0) {
     await direct.organization.deleteMany({ where: { id: { in: orgIds } } });
   }

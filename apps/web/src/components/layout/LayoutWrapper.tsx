@@ -8,8 +8,9 @@ import { Toast } from "@/components/ui/toast";
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
+  const isAdminPath = pathname.startsWith("/admin");
 
-  if (isLoginPage) {
+  if (isLoginPage || isAdminPath) {
     return <main className="flex-1 min-h-screen">{children}</main>;
   }
 

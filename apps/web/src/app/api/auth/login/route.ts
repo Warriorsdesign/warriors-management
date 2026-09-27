@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { authPrisma } from '@/lib/db/auth-client';
+import { adminPrisma } from '@/lib/db/admin';
 import bcrypt from 'bcryptjs';
 import { signToken } from '@/lib/auth/jwt';
 
@@ -14,8 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Use authPrisma which runs with app_auth role, allowing read access to Users regardless of RLS
-    const user = await authPrisma.user.findUnique({
+    // Utilisation de adminPrisma (qui fonctionne) au lieu de authPrisma pour contourner le timeout de Supavisor
+    const user = await adminPrisma.user.findUnique({
       where: { matricule },
     });
 
@@ -44,10 +44,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Un Super Admin sans organisation cliente doit utiliser le portail /admin/login
+    if (user.isSuperAdmin && !user.organizationId) {
+      return NextResponse.json(
+        { error: "Ce compte Super Administrateur doit se connecter via l'espace dédié : /admin/login" },
+        { status: 403 }
+      );
+    }
+
+    // Vérifier si l'organisation cliente est suspendue
+    if (user.organizationId) {
+      const org = await adminPrisma.organization.findUnique({
+        where: { id: user.organizationId },
+        select: { status: true, name: true },
+      });
+      if (org && org.status === 'suspendu') {
+        return NextResponse.json(
+          { error: `L'organisation "${org.name}" est actuellement suspendue. Accès bloqué.` },
+          { status: 403 }
+        );
+      }
+    }
+
     // Sign JWT
     const token = await signToken({
       userId: user.id,
-      orgId: user.organizationId,
+      orgId: user.organizationId ?? '',
       roles: user.roles,
     });
 

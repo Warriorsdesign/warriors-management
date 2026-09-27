@@ -62,6 +62,37 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   });
   if (!classGroup) throw new ApiError(400, 'Classe introuvable.', 'CLASS_NOT_FOUND');
 
+  // Vérification de la capacité de la classe
+  const studentsInClass = await tx.student.count({
+    where: { classId: body.classId },
+  });
+
+  if (studentsInClass >= classGroup.capacity) {
+    throw new ApiError(403, `La classe est complète (capacité maximum de ${classGroup.capacity} atteinte).`, 'CLASS_FULL');
+  }
+
+  // Vérification du quota d'abonnement (maxStudents)
+  const sub = await tx.subscription.findUnique({
+    where: { organizationId: orgId },
+    select: { maxStudents: true, plan: true },
+  });
+
+  if (!sub) {
+    throw new ApiError(400, 'Abonnement introuvable.', 'SUBSCRIPTION_NOT_FOUND');
+  }
+
+  const studentsCount = await tx.student.count({
+    where: { organizationId: orgId },
+  });
+
+  if (studentsCount >= sub.maxStudents) {
+    throw new ApiError(
+      403,
+      `Quota atteint. Votre plan actuel (${sub.plan}) est limité à ${sub.maxStudents} étudiant(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
+      'QUOTA_EXCEEDED'
+    );
+  }
+
   const matricule = await generateStudentMatricule(tx, orgId);
   const initial = buildInitialSchedule({
     totalCost: classGroup.formation.totalCost,
