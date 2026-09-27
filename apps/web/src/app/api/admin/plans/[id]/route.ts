@@ -7,17 +7,34 @@ export const PUT = withAdminRoute(async (req, { params }) => {
     const { id } = params;
     const body = await req.json();
     
-    const plan = await adminPrisma.plan.update({
-      where: { id },
-      data: {
-        name: body.name,
-        description: body.description,
-        price: body.price !== undefined ? parseFloat(body.price) : undefined,
-        maxCenters: body.maxCenters !== undefined ? parseInt(body.maxCenters) : undefined,
-        maxStudents: body.maxStudents !== undefined ? parseInt(body.maxStudents) : undefined,
-        isPopular: body.isPopular,
-        features: body.features,
+    const plan = await adminPrisma.$transaction(async (tx) => {
+      const updatedPlan = await tx.plan.update({
+        where: { id },
+        data: {
+          name: body.name,
+          description: body.description,
+          price: body.price !== undefined ? parseFloat(body.price) : undefined,
+          maxCenters: body.isUnlimitedCenters ? -1 : (body.maxCenters !== undefined ? parseInt(body.maxCenters) : undefined),
+          maxStudents: body.isUnlimitedStudents ? -1 : (body.maxStudents !== undefined ? parseInt(body.maxStudents) : undefined),
+          isUnlimitedCenters: body.isUnlimitedCenters !== undefined ? body.isUnlimitedCenters : undefined,
+          isUnlimitedStudents: body.isUnlimitedStudents !== undefined ? body.isUnlimitedStudents : undefined,
+          isPopular: body.isPopular,
+          features: body.features,
+          unavailableFeatures: body.unavailableFeatures,
+        }
+      });
+
+      if (body.maxCenters !== undefined || body.maxStudents !== undefined || body.isUnlimitedCenters !== undefined || body.isUnlimitedStudents !== undefined) {
+        await tx.subscription.updateMany({
+          where: { planId: id, status: 'active' },
+          data: {
+            ...((body.maxCenters !== undefined || body.isUnlimitedCenters !== undefined) && { maxCenters: body.isUnlimitedCenters ? -1 : parseInt(body.maxCenters) }),
+            ...((body.maxStudents !== undefined || body.isUnlimitedStudents !== undefined) && { maxStudents: body.isUnlimitedStudents ? -1 : parseInt(body.maxStudents) }),
+          }
+        });
       }
+
+      return updatedPlan;
     });
 
     return NextResponse.json(plan);

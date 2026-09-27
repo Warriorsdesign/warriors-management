@@ -17,7 +17,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     enrolledCount,
     status: computeClassStatus(classGroup.status, classGroup.capacity, enrolledCount),
   });
-}, { allowedRoles: PERMISSIONS.classes.read });
+}, { permission: { resource: 'classes', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updateClassSchema.parse(await req.json());
@@ -38,7 +38,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     enrolledCount,
     status: computeClassStatus(updated.status, updated.capacity, enrolledCount),
   });
-}, { allowedRoles: PERMISSIONS.classes.write });
+}, { permission: { resource: 'classes', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const classGroup = await findOrgScopedOrThrow(() =>
@@ -46,4 +46,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   );
   await tx.classGroup.delete({ where: { id: classGroup.id } });
   return NextResponse.json({ success: true });
-}, { allowedRoles: PERMISSIONS.classes.write });
+}, { permission: { resource: 'classes', action: 'write' } });

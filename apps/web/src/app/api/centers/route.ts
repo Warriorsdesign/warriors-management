@@ -10,7 +10,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId }) => {
     orderBy: { name: 'asc' },
   });
   return NextResponse.json({ data: centers });
-}, { allowedRoles: PERMISSIONS.centers.read });
+}, { permission: { resource: 'centers', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createCenterSchema.parse(await req.json());
@@ -28,7 +28,7 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
     where: { organizationId: orgId },
   });
 
-  if (centersCount >= sub.maxCenters) {
+  if (sub.maxCenters !== -1 && centersCount >= sub.maxCenters) {
     throw new ApiError(
       403,
       `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxCenters} centre(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
@@ -38,4 +38,4 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
 
   const center = await tx.center.create({ data: { ...body, organizationId: orgId } });
   return NextResponse.json(center, { status: 201 });
-}, { allowedRoles: PERMISSIONS.centers.write });
+}, { permission: { resource: 'centers', action: 'write' } });

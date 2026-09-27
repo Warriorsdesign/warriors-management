@@ -50,7 +50,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   ]);
 
   return NextResponse.json({ data: payments, meta: { total, page, pageSize } });
-}, { allowedRoles: PERMISSIONS.payments.read });
+}, { permission: { resource: 'payments', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const body = createPaymentSchema.parse(await req.json());
@@ -77,4 +77,4 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const schedule = await rebuildScheduleForStudent(tx, student.id, orgId);
 
   return NextResponse.json({ payment, schedule }, { status: 201 });
-}, { allowedRoles: PERMISSIONS.payments.write });
+}, { permission: { resource: 'payments', action: 'write' } });

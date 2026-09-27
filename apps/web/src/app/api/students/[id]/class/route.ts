@@ -17,4 +17,4 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
 
   const updated = await tx.student.update({ where: { id: student.id }, data: { classId: body.classId } });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.students.write });
+}, { permission: { resource: 'students', action: 'write' } });

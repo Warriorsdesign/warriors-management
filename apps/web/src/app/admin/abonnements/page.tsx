@@ -20,6 +20,7 @@ import { EditSubscriptionModal } from "@/components/admin/subscriptions/EditSubs
 interface SubscriptionItem {
   id: string;
   plan: string;
+  planId: string | null;
   status: string;
   startDate: string;
   endDate: string;
@@ -200,13 +201,13 @@ export default function AdminSubscriptionsPage() {
                           <div className="flex items-center gap-1.5">
                             <Store className="w-3 h-3 text-primary" />
                             <span>
-                              {sub.organization._count.centers} / {sub.maxCenters} centres
+                              {sub.organization._count.centers} / {sub.maxCenters === -1 ? "Illimité" : `${sub.maxCenters} centres`}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5">
                             <Users className="w-3 h-3 text-blue-600" />
                             <span>
-                              {sub.organization._count.students} / {sub.maxStudents} apprenants
+                              {sub.organization._count.students} / {sub.maxStudents === -1 ? "Illimité" : `${sub.maxStudents} apprenants`}
                             </span>
                           </div>
                         </div>

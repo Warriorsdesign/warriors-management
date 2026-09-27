@@ -17,9 +17,9 @@ export const GET = withAdminRoute(async (req) => {
 export const POST = withAdminRoute(async (req) => {
   try {
     const body = await req.json();
-    const { name, description, price, maxCenters, maxStudents, isPopular, features } = body;
+    const { name, description, price, maxCenters, maxStudents, isUnlimitedCenters, isUnlimitedStudents, isPopular, features, unavailableFeatures } = body;
 
-    if (!name || maxCenters === undefined || maxStudents === undefined) {
+    if (!name || (maxCenters === undefined && !isUnlimitedCenters) || (maxStudents === undefined && !isUnlimitedStudents)) {
       return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
     }
 
@@ -28,10 +28,13 @@ export const POST = withAdminRoute(async (req) => {
         name,
         description,
         price: parseFloat(price) || 0,
-        maxCenters: parseInt(maxCenters),
-        maxStudents: parseInt(maxStudents),
+        maxCenters: isUnlimitedCenters ? -1 : parseInt(maxCenters),
+        maxStudents: isUnlimitedStudents ? -1 : parseInt(maxStudents),
+        isUnlimitedCenters: !!isUnlimitedCenters,
+        isUnlimitedStudents: !!isUnlimitedStudents,
         isPopular: !!isPopular,
         features: features || [],
+        unavailableFeatures: unavailableFeatures || [],
       },
     });
 

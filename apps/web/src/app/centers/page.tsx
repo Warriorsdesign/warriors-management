@@ -194,7 +194,7 @@ export default function CentersPage() {
                 "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
                 errors.name ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
               )}
-              placeholder="Ex: Campus Paris Centre"
+              placeholder="Ex: Campus Douala Akwa"
             />
             {errors.name && (
               <p className="text-xs text-red-500 mt-1 animate-fade-in">{errors.name}</p>
@@ -208,7 +208,7 @@ export default function CentersPage() {
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               className="w-full bg-background border border-border focus:ring-primary rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all"
-              placeholder="Ex: 15 rue de la Paix, 75000 Paris"
+              placeholder="Ex: Akwa, Douala"
             />
           </div>
 

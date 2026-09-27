@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 import { adminPrisma } from '@/lib/db/admin';
 import bcrypt from 'bcryptjs';
 import { signToken } from '@/lib/auth/jwt';
+import { subscriptionService } from '@/lib/services/subscription.service';
 
 export async function POST(request: Request) {
   try {
+    // Vérification et suspension paresseuse des abonnements expirés (sans bloquer la requête)
+    subscriptionService.checkAndSuspendExpiredOrgs().catch(console.error);
+
     const { matricule, password } = await request.json();
 
     if (!matricule || !password) {

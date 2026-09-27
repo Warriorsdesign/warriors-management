@@ -18,7 +18,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     })
   );
   return NextResponse.json({ ...student, schedule: schedules[0] ?? null });
-}, { allowedRoles: PERMISSIONS.students.read });
+}, { permission: { resource: 'students', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updateStudentSchema.parse(await req.json());
@@ -35,7 +35,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     },
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.students.write });
+}, { permission: { resource: 'students', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const student = await findOrgScopedOrThrow(() =>
@@ -43,4 +43,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   );
   await tx.student.delete({ where: { id: student.id } });
   return NextResponse.json({ success: true });
-}, { allowedRoles: PERMISSIONS.students.write });
+}, { permission: { resource: 'students', action: 'write' } });

@@ -51,7 +51,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   const data = students.map(({ schedules, ...s }) => ({ ...s, schedule: schedules[0] ?? null }));
 
   return NextResponse.json({ data, meta: { total, page, pageSize } });
-}, { allowedRoles: PERMISSIONS.students.read });
+}, { permission: { resource: 'students', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const body = createStudentSchema.parse(await req.json());
@@ -85,7 +85,7 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
     where: { organizationId: orgId },
   });
 
-  if (studentsCount >= sub.maxStudents) {
+  if (sub.maxStudents !== -1 && studentsCount >= sub.maxStudents) {
     throw new ApiError(
       403,
       `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxStudents} étudiant(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
@@ -154,4 +154,4 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
     : schedule;
 
   return NextResponse.json({ student, schedule: finalSchedule, payment }, { status: 201 });
-}, { allowedRoles: PERMISSIONS.students.write });
+}, { permission: { resource: 'students', action: 'write' } });

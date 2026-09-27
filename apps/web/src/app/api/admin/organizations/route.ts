@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
+import { generateUserMatricule } from '@/lib/business/matricule';
 import bcrypt from 'bcryptjs';
 
 export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
@@ -82,24 +83,27 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 30);
 
+    // On récupère le plan sélectionné pour avoir ses limites
+    const selectedPlan = await tx.plan.findUnique({
+      where: { id: plan }
+    });
+
     await tx.subscription.create({
       data: {
         organizationId: org.id,
-        plan: plan,
+        planId: plan,
         status: 'trial',
         startDate: new Date(),
         endDate,
-        maxCenters: plan === 'ENTERPRISE' ? 10 : 3,
-        maxStudents: plan === 'ENTERPRISE' ? 1000 : 200,
+        maxCenters: selectedPlan?.maxCenters ?? 3,
+        maxStudents: selectedPlan?.maxStudents ?? 200,
       },
     });
 
     // 3. Si un administrateur initial est fourni, on le crée
     if (initialAdmin && initialAdmin.email && initialAdmin.password) {
       const passwordHash = await bcrypt.hash(initialAdmin.password, 10);
-      const matricule =
-        initialAdmin.matricule?.trim().toUpperCase() ||
-        `ADM-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      const matricule = initialAdmin.matricule?.trim().toUpperCase() || await generateUserMatricule(org.name);
 
       await tx.user.create({
         data: {

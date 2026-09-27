@@ -19,4 +19,4 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
 
   const stats = await getDashboardStats(tx, orgId, centerIds, formationIds, period);
   return NextResponse.json(stats);
-}, { allowedRoles: PERMISSIONS.dashboard.read });
+}, { permission: { resource: 'dashboard', action: 'read' } });

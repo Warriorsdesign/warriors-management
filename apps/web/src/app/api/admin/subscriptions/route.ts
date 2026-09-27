@@ -28,6 +28,7 @@ export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
       take: pageSize,
       orderBy: { endDate: 'asc' },
       include: {
+        plan: true,
         organization: {
           select: {
             id: true,
@@ -61,6 +62,8 @@ export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
       ...sub,
       status: computedStatus,
       daysLeft,
+      plan: sub.plan?.name || "STARTER",
+      planId: sub.planId
     };
   });
 
@@ -77,7 +80,7 @@ export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
 
 export const PATCH = withAdminRoute(async (req, { prisma, adminUser }) => {
   const body = await req.json();
-  const { id, plan, status, endDate, maxCenters, maxStudents } = body;
+  const { id, planId, status, endDate, maxCenters, maxStudents } = body;
 
   if (!id) {
     return NextResponse.json(
@@ -88,7 +91,7 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser }) => {
 
   const existing = await prisma.subscription.findUnique({
     where: { id },
-    include: { organization: true },
+    include: { organization: true, plan: true },
   });
 
   if (!existing) {
@@ -101,14 +104,25 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser }) => {
   const updated = await prisma.subscription.update({
     where: { id },
     data: {
-      plan: plan || existing.plan,
+      planId: planId || existing.planId,
       status: status || existing.status,
       endDate: endDate ? new Date(endDate) : existing.endDate,
       maxCenters: maxCenters !== undefined ? Number(maxCenters) : existing.maxCenters,
       maxStudents: maxStudents !== undefined ? Number(maxStudents) : existing.maxStudents,
     },
-    include: { organization: true },
+    include: { organization: true, plan: true },
   });
+
+  // Synchroniser le statut de l'organisation
+  if (status && status !== existing.status) {
+    const orgStatus = ['active', 'trial'].includes(status) ? 'actif' : 'suspendu';
+    await prisma.organization.update({
+      where: { id: existing.organizationId },
+      data: { status: orgStatus },
+    });
+    // On met à jour l'objet pour l'audit
+    updated.organization.status = orgStatus;
+  }
 
   await logAuditEvent({
     actorId: adminUser.id,
@@ -119,7 +133,7 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser }) => {
     resourceId: id,
     details: {
       organizationName: existing.organization.name,
-      plan: updated.plan,
+      plan: updated.plan?.name,
       status: updated.status,
       endDate: updated.endDate,
     },

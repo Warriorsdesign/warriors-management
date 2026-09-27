@@ -26,4 +26,4 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     data: { levels: updatedLevels as unknown as Prisma.InputJsonValue },
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.formations.write });
+}, { permission: { resource: 'formations', action: 'write' } });

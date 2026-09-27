@@ -18,7 +18,7 @@ export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
     orderBy: { name: 'asc' },
   });
   return NextResponse.json({ data: formations });
-}, { allowedRoles: PERMISSIONS.formations.read });
+}, { permission: { resource: 'formations', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createFormationSchema.parse(await req.json());
@@ -27,4 +27,4 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
     data: { ...body, levels: levels as unknown as Prisma.InputJsonValue, organizationId: orgId },
   });
   return NextResponse.json(formation, { status: 201 });
-}, { allowedRoles: PERMISSIONS.formations.write });
+}, { permission: { resource: 'formations', action: 'write' } });

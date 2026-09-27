@@ -13,6 +13,7 @@ import {
   LogOut,
   ExternalLink,
   Settings,
+  Receipt,
 } from "lucide-react";
 import { useAdminSession, adminLogout } from "@/lib/hooks/useAdminSession";
 
@@ -36,6 +37,11 @@ const NAV_ITEMS = [
     label: "Abonnements",
     href: "/admin/abonnements",
     icon: CreditCard,
+  },
+  {
+    label: "Paiements",
+    href: "/admin/paiements",
+    icon: Receipt,
   },
   {
     label: "Audit Logs",

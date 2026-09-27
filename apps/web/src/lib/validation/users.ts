@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 const rolesSchema = z
-  .array(z.enum(['ADMIN', 'GESTIONNAIRE', 'COMPTABLE']))
+  .array(z.string())
   .min(1, 'Au moins un rôle est requis.');
 
 export const createUserSchema = z.object({

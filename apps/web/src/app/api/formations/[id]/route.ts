@@ -13,7 +13,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     tx.formation.findFirst({ where: { id: params.id, organizationId: orgId } })
   );
   return NextResponse.json(formation);
-}, { allowedRoles: PERMISSIONS.formations.read });
+}, { permission: { resource: 'formations', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updateFormationSchema.parse(await req.json());
@@ -32,7 +32,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     data: { ...body, levels: levels as Prisma.InputJsonValue },
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.formations.write });
+}, { permission: { resource: 'formations', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const formation = await findOrgScopedOrThrow(() =>
@@ -41,4 +41,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   await assertFormationDeletable(tx, formation.id);
   await tx.formation.delete({ where: { id: formation.id } });
   return NextResponse.json({ success: true });
-}, { allowedRoles: PERMISSIONS.formations.write });
+}, { permission: { resource: 'formations', action: 'write' } });

@@ -15,7 +15,7 @@ export default function AdminSettingsPage() {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Paramètres de la plateforme</h1>
         <p className="text-sm text-gray-500 mt-1">Configurez les réglages globaux de Warriors Management.</p>
@@ -29,11 +29,10 @@ export default function AdminSettingsPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                isActive
+              className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${isActive
                   ? "border-primary text-primary"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               {tab.label}

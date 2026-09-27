@@ -30,7 +30,7 @@ export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
     orderBy: { firstName: 'asc' },
   });
   return NextResponse.json({ data: users });
-}, { allowedRoles: PERMISSIONS.users.read });
+}, { permission: { resource: 'users', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createUserSchema.parse(await req.json());
@@ -61,4 +61,4 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
   });
 
   return NextResponse.json({ user, provisionalPassword }, { status: 201 });
-}, { allowedRoles: PERMISSIONS.users.write });
+}, { permission: { resource: 'users', action: 'write' } });

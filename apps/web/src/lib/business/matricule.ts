@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import { ApiError } from '@/lib/api/errors';
 import type { TenantClient } from '@/lib/db';
-import { authPrisma } from '@/lib/db/auth-client';
+import { adminPrisma } from '@/lib/db/admin';
 
 function randomMatriculeSuffix(): string {
   return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
@@ -33,20 +33,19 @@ function organizationCode(orgName: string): string {
  * Sert désormais d'identifiant de connexion (voir /api/auth/login) : le login se fait
  * AVANT de connaître l'organisation, donc User.matricule doit être unique sur TOUTE la
  * base, pas seulement au sein d'une org. Le comptage/la vérification d'unicité passe
- * donc par `authPrisma` (rôle app_auth, visibilité globale sur User - voir auth-client.ts)
- * plutôt que par `tx`, qui est cantonné à l'organisation courante par la RLS.
+ * donc par `adminPrisma` plutôt que par `tx`, qui est cantonné à l'organisation courante par la RLS.
  */
 export async function generateUserMatricule(orgName: string): Promise<string> {
   const now = new Date();
   const yymm = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
   const prefix = `${organizationCode(orgName)}${yymm}`;
 
-  const existingCount = await authPrisma.user.count({ where: { matricule: { startsWith: prefix } } });
+  const existingCount = await adminPrisma.user.count({ where: { matricule: { startsWith: prefix } } });
 
   for (let i = 0; i < 20; i++) {
     const seq = String(existingCount + 1 + i).padStart(3, '0');
     const candidate = `${prefix}${seq}`;
-    const exists = await authPrisma.user.findUnique({ where: { matricule: candidate } });
+    const exists = await adminPrisma.user.findUnique({ where: { matricule: candidate } });
     if (!exists) return candidate;
   }
   throw new ApiError(500, 'Failed to generate a unique user matricule');

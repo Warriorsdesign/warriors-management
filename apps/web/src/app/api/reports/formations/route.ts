@@ -8,4 +8,4 @@ import { parseCenterIds } from '@/lib/api/centerFilter';
 export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   const data = await getFormationReports(tx, orgId, parseDateRange(searchParams), parseCenterIds(searchParams));
   return NextResponse.json({ data });
-}, { allowedRoles: PERMISSIONS.dashboard.read });
+}, { permission: { resource: 'dashboard', action: 'read' } });

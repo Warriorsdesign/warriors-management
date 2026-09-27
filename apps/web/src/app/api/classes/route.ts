@@ -26,7 +26,7 @@ export const GET = withApiRoute(async (req, { tx, orgId, searchParams }) => {
   );
 
   return NextResponse.json({ data });
-}, { allowedRoles: PERMISSIONS.classes.read });
+}, { permission: { resource: 'classes', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createClassSchema.parse(await req.json());
@@ -43,4 +43,4 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
     },
   });
   return NextResponse.json({ ...classGroup, enrolledCount: 0, status: 'ouverte' }, { status: 201 });
-}, { allowedRoles: PERMISSIONS.classes.write });
+}, { permission: { resource: 'classes', action: 'write' } });

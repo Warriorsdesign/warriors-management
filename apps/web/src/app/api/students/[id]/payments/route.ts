@@ -16,7 +16,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     tx.payment.findMany({ where: { studentId: student.id, organizationId: orgId }, orderBy: { date: 'desc' } }),
   ]);
   return NextResponse.json({ schedule, payments });
-}, { allowedRoles: PERMISSIONS.students.read });
+}, { permission: { resource: 'students', action: 'read' } });
 
 export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, params }) => {
   const body = recordPaymentSchema.parse(await req.json());
@@ -40,4 +40,4 @@ export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, params
   const schedule = await rebuildScheduleForStudent(tx, student.id, orgId);
 
   return NextResponse.json({ payment, schedule }, { status: 201 });
-}, { allowedRoles: PERMISSIONS.payments.write });
+}, { permission: { resource: 'payments', action: 'write' } });

@@ -15,7 +15,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     })
   );
   return NextResponse.json(payment);
-}, { allowedRoles: PERMISSIONS.payments.read });
+}, { permission: { resource: 'payments', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updatePaymentSchema.parse(await req.json());
@@ -34,7 +34,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
   const schedule = await rebuildScheduleForStudent(tx, payment.studentId, orgId);
 
   return NextResponse.json({ payment: updated, schedule });
-}, { allowedRoles: PERMISSIONS.payments.write });
+}, { permission: { resource: 'payments', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const payment = await findOrgScopedOrThrow(() =>
@@ -45,4 +45,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   const schedule = await rebuildScheduleForStudent(tx, payment.studentId, orgId);
 
   return NextResponse.json({ success: true, schedule });
-}, { allowedRoles: PERMISSIONS.payments.write });
+}, { permission: { resource: 'payments', action: 'write' } });

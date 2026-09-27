@@ -4,12 +4,13 @@ import React, { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
-import { Building2, Mail, Phone, MapPin, Key, Loader2 } from "lucide-react";
+import { Building2, Mail, Phone, MapPin, Key, Loader2, Eye, EyeOff } from "lucide-react";
+import useSWR from "swr";
 
 interface OrganizationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (adminInfo?: { matricule: string; password: string }) => void;
   initialData?: {
     id: string;
     name: string;
@@ -34,13 +35,34 @@ export function OrganizationModal({
   const [address, setAddress] = useState(initialData?.address || "");
   const [plan, setPlan] = useState("STARTER");
 
-  // Initial Admin fields for creation
-  const [createAdmin, setCreateAdmin] = useState(!isEditing);
   const [adminFirstName, setAdminFirstName] = useState("");
   const [adminLastName, setAdminLastName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
-  const [adminMatricule, setAdminMatricule] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [adminMatricule, setAdminMatricule] = useState("");
+  const [isMatriculeManual, setIsMatriculeManual] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Auto-fill matricule
+  React.useEffect(() => {
+    if (!isEditing && !isMatriculeManual && name.trim().length > 0) {
+      const letters = name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z]/g, "")
+        .toUpperCase();
+      const code = (letters + "XXXX").slice(0, 4);
+      const now = new Date();
+      const yymm = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, "0")}`;
+      setAdminMatricule(`${code}${yymm}001`);
+    } else if (!isEditing && !isMatriculeManual && name.trim().length === 0) {
+      setAdminMatricule("");
+    }
+  }, [name, isEditing, isMatriculeManual]);
+
+  // Load plans dynamically
+  const { data: plansData } = useSWR<{ id: string; name: string }[]>('/api/admin/plans');
+  const availablePlans = plansData || [];
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -66,12 +88,12 @@ export function OrganizationModal({
           plan,
         };
 
-        if (createAdmin && adminEmail && adminPassword) {
+        if (!isEditing && adminEmail && adminPassword) {
           payload.initialAdmin = {
+            matricule: adminMatricule,
             firstName: adminFirstName,
             lastName: adminLastName,
             email: adminEmail,
-            matricule: adminMatricule,
             password: adminPassword,
           };
         }
@@ -80,10 +102,14 @@ export function OrganizationModal({
           method: "POST",
           body: JSON.stringify(payload),
         });
-        showToast("Organisation créée avec succès.", "success");
       }
 
-      onSuccess();
+      if (!isEditing && adminEmail && adminPassword) {
+        onSuccess({ matricule: adminMatricule, password: adminPassword });
+      } else {
+        showToast("Organisation mise à jour avec succès.", "success");
+        onSuccess();
+      }
       onClose();
     } catch (err) {
       setErrorMsg(
@@ -147,7 +173,7 @@ export function OrganizationModal({
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+225 07 00 00 00"
+                placeholder="+237 6XX XXX XXX"
                 className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
               />
             </div>
@@ -162,7 +188,7 @@ export function OrganizationModal({
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="Abidjan, Cocody Deux-Plateaux"
+              placeholder="Douala, Bonamoussadi"
               className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
             />
           </div>
@@ -170,85 +196,86 @@ export function OrganizationModal({
 
         {!isEditing && (
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Formule d'Abonnement</label>
+            <label className="text-xs font-semibold text-foreground">Formule d'Abonnement *</label>
             <select
               value={plan}
               onChange={(e) => setPlan(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary"
+              required
             >
-              <option value="STARTER">Starter (Jusqu'à 3 centres, 200 apprenants)</option>
-              <option value="PRO">Pro (Jusqu'à 5 centres, 500 apprenants)</option>
-              <option value="ENTERPRISE">Enterprise (Centres illimités)</option>
+              <option value="" disabled>Sélectionner une formule</option>
+              {availablePlans.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
           </div>
         )}
 
         {!isEditing && (
           <div className="pt-2 border-t border-border">
-            <label className="flex items-center gap-2 cursor-pointer mb-3">
-              <input
-                type="checkbox"
-                checked={createAdmin}
-                onChange={(e) => setCreateAdmin(e.target.checked)}
-                className="rounded border-border text-primary focus:ring-0"
-              />
-              <span className="text-xs font-semibold text-foreground">
-                Créer immédiatement le compte Administrateur de l'organisation
-              </span>
-            </label>
-
-            {createAdmin && (
-              <div className="space-y-3 p-3.5 rounded-xl bg-secondary/40 border border-border animate-in fade-in">
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Prénom"
-                    value={adminFirstName}
-                    onChange={(e) => setAdminFirstName(e.target.value)}
-                    className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
-                  />
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nom"
-                    value={adminLastName}
-                    onChange={(e) => setAdminLastName(e.target.value)}
-                    className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="email"
-                    required
-                    placeholder="Email de connexion"
-                    value={adminEmail}
-                    onChange={(e) => setAdminEmail(e.target.value)}
-                    className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Matricule (optionnel)"
-                    value={adminMatricule}
-                    onChange={(e) => setAdminMatricule(e.target.value.toUpperCase())}
-                    className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
-                  />
-                </div>
-
-                <div className="relative">
-                  <Key className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="password"
-                    required
-                    placeholder="Mot de passe initial"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
-                  />
-                </div>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Compte Administrateur (Obligatoire)</h4>
+            <div className="space-y-3 p-3.5 rounded-xl bg-secondary/40 border border-border animate-in fade-in">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  required
+                  placeholder="Prénom *"
+                  value={adminFirstName}
+                  onChange={(e) => setAdminFirstName(e.target.value)}
+                  className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
+                />
+                <input
+                  type="text"
+                  required
+                  placeholder="Nom *"
+                  value={adminLastName}
+                  onChange={(e) => setAdminLastName(e.target.value)}
+                  className="px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
+                />
               </div>
-            )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="Email de connexion *"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
+                />
+                
+                <input
+                  type="text"
+                  required
+                  placeholder="Matricule *"
+                  value={adminMatricule}
+                  onChange={(e) => {
+                    setAdminMatricule(e.target.value);
+                    setIsMatriculeManual(true);
+                  }}
+                  className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="relative">
+                <Key className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Mot de passe initial *"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full pl-9 pr-9 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

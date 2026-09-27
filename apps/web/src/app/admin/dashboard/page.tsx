@@ -35,6 +35,7 @@ interface DashboardData {
     totalCenters: number;
     totalUsers: number;
     totalStudents: number;
+    totalRevenue: number;
     subscriptions: {
       active: number;
       trial: number;
@@ -137,7 +138,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Card 1: Organisations */}
         <div className="p-5 rounded-xl bg-card border border-border shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center justify-between">
@@ -214,6 +215,24 @@ export default function AdminDashboardPage() {
               {kpis.totalStudents}
             </span>
             <span className="text-xs text-emerald-600 font-medium">inscrits</span>
+          </div>
+        </div>
+
+        {/* Card 5: Chiffre d'Affaires */}
+        <div className="p-5 rounded-xl bg-card border border-border shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Chiffre d'Affaires
+            </span>
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+              <CreditCard className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-3xl font-extrabold text-foreground">
+              {new Intl.NumberFormat('fr-FR').format(kpis.totalRevenue)}
+            </span>
+            <span className="text-xs font-bold text-muted-foreground">FCFA</span>
           </div>
         </div>
       </div>

@@ -62,7 +62,6 @@ async function seedSuperAdmin() {
     await prisma.subscription.create({
       data: {
         organizationId: org.id,
-        plan: 'STARTER',
         status: 'trial',
         startDate: new Date(),
         endDate,

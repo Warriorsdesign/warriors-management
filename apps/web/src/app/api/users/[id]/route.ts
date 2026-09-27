@@ -18,7 +18,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     tx.user.findFirst({ where: { id: params.id, organizationId: orgId }, select: SAFE_SELECT })
   );
   return NextResponse.json(user);
-}, { allowedRoles: PERMISSIONS.users.read });
+}, { permission: { resource: 'users', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updateUserSchema.parse(await req.json());
@@ -61,7 +61,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     select: SAFE_SELECT,
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.users.write });
+}, { permission: { resource: 'users', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const user = await findOrgScopedOrThrow(() =>
@@ -80,4 +80,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
 
   await tx.user.delete({ where: { id: user.id } });
   return NextResponse.json({ success: true });
-}, { allowedRoles: PERMISSIONS.users.write });
+}, { permission: { resource: 'users', action: 'write' } });

@@ -62,6 +62,7 @@ export default function AdminOrganizationsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState<OrganizationItem | null>(null);
   const [suspendingOrg, setSuspendingOrg] = useState<OrganizationItem | null>(null);
+  const [newlyCreatedAdmin, setNewlyCreatedAdmin] = useState<{ matricule: string; password: string } | null>(null);
 
   const queryParams = new URLSearchParams({
     page: page.toString(),
@@ -323,7 +324,12 @@ export default function AdminOrganizationsPage() {
       <OrganizationModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onSuccess={() => mutate()}
+        onSuccess={(adminInfo) => {
+          mutate();
+          if (adminInfo) {
+            setNewlyCreatedAdmin(adminInfo);
+          }
+        }}
       />
 
       <OrganizationModal
@@ -339,6 +345,46 @@ export default function AdminOrganizationsPage() {
         organization={suspendingOrg}
         onSuccess={() => mutate()}
       />
+
+      {/* Success Modal */}
+      {newlyCreatedAdmin && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setNewlyCreatedAdmin(null)} />
+          <div className="relative bg-card rounded-xl shadow-lg border border-border w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-bold text-center text-foreground mb-2">
+                L'organisation a bien été créée
+              </h3>
+              <p className="text-sm text-center text-muted-foreground mb-6">
+                Voici les informations de connexion de l'administrateur. Veuillez bien conserver ces informations.
+              </p>
+              
+              <div className="space-y-3 bg-secondary/30 p-4 rounded-lg border border-border">
+                <div>
+                  <span className="text-xs text-muted-foreground">Matricule :</span>
+                  <div className="font-mono text-sm font-semibold mt-0.5">{newlyCreatedAdmin.matricule}</div>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground">Mot de passe :</span>
+                  <div className="font-mono text-sm font-semibold mt-0.5">{newlyCreatedAdmin.password}</div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={() => setNewlyCreatedAdmin(null)}
+                  className="px-6 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold rounded-lg shadow-sm transition-all"
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

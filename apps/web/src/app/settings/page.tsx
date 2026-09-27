@@ -1,14 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Upload, Building2, Save, User as UserIcon } from "lucide-react";
+import { Upload, Building2, Save, User as UserIcon, CreditCard } from "lucide-react";
 import { useSession, useCan, updateOwnProfile, changeOwnPassword } from "@/lib/hooks/useSession";
 import { useOrganization, updateOrganization } from "@/lib/hooks/useOrganization";
 import { ApiClientError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/store/useUIStore";
+import { SubscriptionSettings } from "@/components/settings/SubscriptionSettings";
+import { RoleSettings } from "@/components/settings/RoleSettings";
+import { Shield } from "lucide-react";
 
-type Tab = "profile" | "organization";
+type Tab = "profile" | "organization" | "roles" | "subscription";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
@@ -183,18 +186,44 @@ export default function SettingsPage() {
                 Mon Profil
               </button>
               {canReadOrg && (
-                <button
-                  onClick={() => setActiveTab("organization")}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
-                    activeTab === "organization"
-                      ? "bg-secondary text-foreground font-semibold"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                  )}
-                >
-                  <Building2 className="w-4 h-4" />
-                  Organisation
-                </button>
+                <>
+                  <button
+                    onClick={() => setActiveTab("organization")}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === "organization"
+                        ? "bg-secondary text-foreground font-semibold"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    )}
+                  >
+                    <Building2 className="w-4 h-4" />
+                    Organisation
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("roles")}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === "roles"
+                        ? "bg-secondary text-foreground font-semibold"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    )}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Rôles & Permissions
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("subscription")}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                      activeTab === "subscription"
+                        ? "bg-secondary text-foreground font-semibold"
+                        : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                    )}
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    Abonnement & Factures
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -413,7 +442,7 @@ export default function SettingsPage() {
                       value={orgFormData.phone}
                       onChange={e => setOrgFormData({...orgFormData, phone: e.target.value})}
                       className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
-                      placeholder="+225 00 00 00 00"
+                      placeholder="+237 6XX XXX XXX"
                     />
                   </div>
 
@@ -424,7 +453,7 @@ export default function SettingsPage() {
                       value={orgFormData.address}
                       onChange={e => setOrgFormData({...orgFormData, address: e.target.value})}
                       className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
-                      placeholder="Rue, Ville, Pays"
+                      placeholder="Bonamoussadi, Douala"
                     />
                   </div>
                 </div>
@@ -441,6 +470,16 @@ export default function SettingsPage() {
                 </div>
               </form>
             </div>
+          )}
+
+          {/* ROLES TAB */}
+          {activeTab === "roles" && canReadOrg && (
+            <RoleSettings />
+          )}
+
+          {/* ABONNEMENT TAB */}
+          {activeTab === "subscription" && canReadOrg && (
+            <SubscriptionSettings />
           )}
 
         </div>

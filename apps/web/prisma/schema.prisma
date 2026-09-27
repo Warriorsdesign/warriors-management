@@ -19,6 +19,7 @@ model Organization {
   
   centers   Center[]
   users     User[]
+  roles     Role[]
   formations Formation[]
   classes   ClassGroup[]
   students  Student[]
@@ -26,6 +27,7 @@ model Organization {
   expenses  Expense[]
   schedules PaymentSchedule[]
   subscription Subscription?
+  platformPayments PlatformPayment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -212,10 +214,14 @@ model Plan {
   price       Float    @default(0)
   maxCenters  Int      @default(1)
   maxStudents Int      @default(50)
+  isUnlimitedCenters Boolean  @default(false)
+  isUnlimitedStudents Boolean @default(false)
   isPopular   Boolean  @default(false)
   features    Json?
+  unavailableFeatures Json?
   
   subscriptions Subscription[]
+  platformPayments PlatformPayment[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -253,4 +259,54 @@ model AuditLog {
   @@index([action])
   @@index([resource, resourceId])
   @@index([createdAt])
+}
+
+model PlatformPayment {
+  id             String       @id @default(uuid())
+  amount         Float
+  status         String       @default("COMPLETED") // "COMPLETED" | "FAILED" | "PENDING"
+  date           DateTime     @default(now())
+  currency       String       @default("FCFA")
+  reference      String       @default("") @unique
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  planId         String?
+  plan           Plan?        @relation(fields: [planId], references: [id])
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Role {
+  id             String        @id @default(uuid())
+  name           String
+  description    String?
+  isSystem       Boolean       @default(false)
+  
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  permissions    RolePermission[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([name, organizationId])
+}
+
+model RolePermission {
+  id        String   @id @default(uuid())
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  resource  String
+  canRead   Boolean  @default(false)
+  canWrite  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([roleId, resource])
 }

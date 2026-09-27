@@ -12,7 +12,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
     tx.expense.findFirst({ where: { id: params.id, organizationId: orgId } })
   );
   return NextResponse.json(expense);
-}, { allowedRoles: PERMISSIONS.expenses.read });
+}, { permission: { resource: 'expenses', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
   const body = updateExpenseSchema.parse(await req.json());
@@ -28,7 +28,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     data: { ...body, date: body.date ? new Date(body.date) : undefined },
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.expenses.write });
+}, { permission: { resource: 'expenses', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   const expense = await findOrgScopedOrThrow(() =>
@@ -36,4 +36,4 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) =
   );
   await tx.expense.delete({ where: { id: expense.id } });
   return NextResponse.json({ success: true });
-}, { allowedRoles: PERMISSIONS.expenses.write });
+}, { permission: { resource: 'expenses', action: 'write' } });

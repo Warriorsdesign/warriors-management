@@ -39,7 +39,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   ]);
 
   return NextResponse.json({ data: expenses, meta: { total, page, pageSize } });
-}, { allowedRoles: PERMISSIONS.expenses.read });
+}, { permission: { resource: 'expenses', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const body = createExpenseSchema.parse(await req.json());
@@ -60,4 +60,4 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
     },
   });
   return NextResponse.json(expense, { status: 201 });
-}, { allowedRoles: PERMISSIONS.expenses.write });
+}, { permission: { resource: 'expenses', action: 'write' } });

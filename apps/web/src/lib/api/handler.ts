@@ -19,7 +19,10 @@ interface RouteCtx<P> extends RequestContext {
  */
 export function withApiRoute<P = Record<string, string>>(
   handler: (req: NextRequest, ctx: RouteCtx<P>) => Promise<NextResponse>,
-  opts?: { allowedRoles?: readonly Role[] }
+  opts?: { 
+    allowedRoles?: readonly Role[];
+    permission?: { resource: string; action: 'read' | 'write' };
+  }
 ) {
   return async (req: NextRequest, routeArgs: { params: P }) => {
     try {
@@ -35,6 +38,24 @@ export function withApiRoute<P = Record<string, string>>(
 
         if (!org || org.status === 'suspendu') {
           throw new ApiError(403, 'Votre organisation est suspendue. Accès refusé.', 'ORG_SUSPENDED');
+        }
+
+        if (opts?.permission) {
+          if (!requestCtx.roles || requestCtx.roles.length === 0) {
+            throw new ApiError(403, 'Accès refusé. Aucun rôle assigné.', 'FORBIDDEN');
+          }
+          
+          const hasPerm = await tx.rolePermission.findFirst({
+            where: {
+              role: { name: { in: requestCtx.roles } },
+              resource: opts.permission.resource,
+              ...(opts.permission.action === 'read' ? { canRead: true } : { canWrite: true })
+            }
+          });
+          
+          if (!hasPerm) {
+             throw new ApiError(403, 'Permission insuffisante pour cette action.', 'FORBIDDEN');
+          }
         }
 
         return handler(req, {

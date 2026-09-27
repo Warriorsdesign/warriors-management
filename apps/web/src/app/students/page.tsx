@@ -490,7 +490,7 @@ export default function StudentsPage() {
                     "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
                     errors.firstName ? "border-red-500 focus:ring-red-500/50" : "border-border focus:ring-primary"
                   )}
-                  placeholder="Ex: Jean"
+                  placeholder="Ex: Paul"
                 />
                 {errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
               </div>
@@ -507,7 +507,7 @@ export default function StudentsPage() {
                     "w-full bg-background border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 transition-all",
                     errors.lastName ? "border-red-500 focus:ring-red-500/50 animate-shake" : "border-border focus:ring-primary"
                   )}
-                  placeholder="Ex: Dupont"
+                  placeholder="Ex: Kamga"
                 />
                 {errors.lastName && <p className="text-xs text-red-500">{errors.lastName}</p>}
               </div>

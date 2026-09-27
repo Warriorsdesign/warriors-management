@@ -44,4 +44,4 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, param
     },
   });
   return NextResponse.json(updated);
-}, { allowedRoles: PERMISSIONS.students.write });
+}, { permission: { resource: 'students', action: 'write' } });

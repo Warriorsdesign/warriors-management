@@ -87,7 +87,7 @@ export function CreateSuperAdminModal({
                 required
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Alex"
+                placeholder="Paul"
                 className="w-full pl-8 pr-3 py-2 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
               />
             </div>
@@ -100,7 +100,7 @@ export function CreateSuperAdminModal({
               required
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              placeholder="Konan"
+              placeholder="Atangana"
               className="w-full px-3 py-2 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
             />
           </div>
@@ -115,7 +115,7 @@ export function CreateSuperAdminModal({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="alex.konan@warriors.com"
+              placeholder="paul.atangana@warriors.com"
               className="w-full pl-8 pr-3 py-2 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
             />
           </div>
