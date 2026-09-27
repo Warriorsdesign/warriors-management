@@ -7,11 +7,11 @@ import { buildInitialSchedule, rebuildScheduleForStudent } from '@/lib/business/
 import { ApiError } from '@/lib/api/errors';
 import { parseCenterIds } from '@/lib/api/centerFilter';
 
-export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
   const search = searchParams.get('search')?.trim();
   const formationIds = searchParams.getAll('formationId');
   const statuses = searchParams.getAll('status');
-  const centerIds = parseCenterIds(searchParams);
+  const centerIds = scope.effective(parseCenterIds(searchParams));
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '10', 10) || 10));
 
@@ -53,11 +53,11 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   return NextResponse.json({ data, meta: { total, page, pageSize } });
 }, { permission: { resource: 'students', action: 'read' } });
 
-export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
+export const POST = withApiRoute(async (req, { tx, orgId, userId, scope }) => {
   const body = createStudentSchema.parse(await req.json());
 
   const classGroup = await tx.classGroup.findFirst({
-    where: { id: body.classId, organizationId: orgId },
+    where: { id: body.classId, organizationId: orgId, ...scope.classGroup() },
     include: { formation: true },
   });
   if (!classGroup) throw new ApiError(400, 'Classe introuvable.', 'CLASS_NOT_FOUND');

@@ -16,7 +16,15 @@ model Organization {
   phone     String?
   address   String?
   status    String   @default("actif") // "actif" | "suspendu"
-  
+
+  // Assistant de configuration initiale (état au niveau de l'organisation, pas de l'utilisateur :
+  // un 2e administrateur ne doit pas reconfigurer une organisation déjà prête).
+  onboardingStatus        String    @default("non_commence") // "non_commence" | "en_cours" | "termine"
+  onboardingStep          String?   // étape courante, voir ONBOARDING_STEPS (lib/onboarding/steps.ts)
+  onboardingSkippedSteps  String[]  @default([])
+  onboardingCompletedAt   DateTime?
+  onboardingCompletedById String?   // traçabilité seule, sans clé étrangère (comme AuditLog.actorId)
+
   centers   Center[]
   users     User[]
   roles     Role[]
@@ -45,6 +53,7 @@ model Center {
   expenses       Expense[]
 
   users          User[]       @relation("CenterUsers")
+  formations     Formation[]  @relation("FormationCenters")
 
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -61,7 +70,11 @@ model User {
   roles          String[]      // ["ADMIN", "GESTIONNAIRE", "COMPTABLE"]
   isSuperAdmin   Boolean       @default(false)
   status         String        @default("actif")
-  
+  lastLoginAt    DateTime?
+  // true quand le mot de passe a été fixé par quelqu'un d'autre (création, réinitialisation) :
+  // l'utilisateur doit le changer avant d'accéder à l'application.
+  mustChangePassword Boolean   @default(false)
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   
@@ -88,6 +101,9 @@ model Formation {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   classes        ClassGroup[]
+  // Centres où la formation est proposée (au moins un) : une classe de cette formation ne peut
+  // être ouverte que dans l'un d'eux, et le périmètre des utilisateurs s'appuie dessus.
+  centers        Center[]     @relation("FormationCenters")
   
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

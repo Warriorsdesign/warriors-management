@@ -15,10 +15,13 @@ export function Topbar() {
   const pathname = usePathname();
   const isDashboard = pathname === "/";
 
-  const { user: userProfile } = useSession();
+  const { user: userProfile, roles } = useSession();
   const { centers } = useCenters();
 
   const centerOptions = centers.map(c => ({ label: c.name, value: c.id }));
+  // Utilisateur restreint à ses centres (voir lib/auth/centerScope.ts) : "Tous les centres" serait trompeur.
+  const isRestricted = !roles.includes('ADMIN') && (userProfile?.centers.length ?? 0) > 0;
+  const centerFilterLabel = isRestricted ? (centers.length === 1 ? centers[0].name : 'Mes centres') : 'Tous les centres';
 
   const isAdminView = pathname.startsWith('/centers') || pathname.startsWith('/users') || pathname.startsWith('/settings');
 
@@ -37,7 +40,7 @@ export function Topbar() {
         {/* Center Selector */}
         {!isAdminView && (
           <MultiSelect
-            label="Tous les centres"
+            label={centerFilterLabel}
             options={centerOptions}
             selectedValues={selectedCenters}
             onChange={setSelectedCenters}

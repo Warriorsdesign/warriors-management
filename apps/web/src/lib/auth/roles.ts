@@ -17,7 +17,9 @@ export const PERMISSIONS = {
   students: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.GESTIONNAIRE] },
   classes: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.GESTIONNAIRE] },
   formations: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.GESTIONNAIRE] },
-  centers: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.GESTIONNAIRE] },
+  // Création/modification/suppression des centres : administrateurs uniquement (les centres
+  // définissent le périmètre d'accès des utilisateurs, voir lib/auth/centerScope.ts).
+  centers: { read: ALL_ROLES, write: [ROLES.ADMIN] },
   payments: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.COMPTABLE] },
   expenses: { read: ALL_ROLES, write: [ROLES.ADMIN, ROLES.COMPTABLE] },
   users: { read: [ROLES.ADMIN, ROLES.GESTIONNAIRE], write: [ROLES.ADMIN] },

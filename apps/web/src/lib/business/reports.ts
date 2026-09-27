@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import type { TenantClient } from '@/lib/db';
 
 const INACTIVE_STATUSES = ['formation_terminee', 'abandonne'];
@@ -39,14 +40,20 @@ export async function getReportsSummary(tx: TenantClient, orgId: string, range: 
   };
 }
 
-export async function getFormationReports(tx: TenantClient, orgId: string, range: DateRange, centerIds: string[] = []) {
+export async function getFormationReports(
+  tx: TenantClient,
+  orgId: string,
+  range: DateRange,
+  centerIds: string[] = [],
+  formationScope: Prisma.FormationWhereInput = {}
+) {
   const studentCenterWhere = centerIds.length ? { classGroup: { centerId: { in: centerIds } } } : {};
   const viaStudentCenterWhere = centerIds.length
     ? { student: { classGroup: { centerId: { in: centerIds } } } }
     : {};
 
   const [formations, students, payments] = await Promise.all([
-    tx.formation.findMany({ where: { organizationId: orgId } }),
+    tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
     tx.student.findMany({
       where: { organizationId: orgId, ...studentCenterWhere },
       include: { classGroup: { select: { formationId: true } } },

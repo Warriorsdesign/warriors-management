@@ -1,5 +1,6 @@
 import { ApiError } from '@/lib/api/errors';
 import type { TenantClient } from '@/lib/db';
+import type { CenterScope } from '@/lib/auth/centerScope';
 
 export interface Level {
   id: string;
@@ -34,6 +35,63 @@ export async function assertFormationDeletable(tx: TenantClient, formationId: st
       409,
       'Cette formation est référencée par des classes existantes et ne peut pas être supprimée.',
       'FORMATION_HAS_CLASSES'
+    );
+  }
+}
+
+/** Une formation est "partagée" quand elle est proposée dans au moins deux centres. */
+export async function isFormationShared(tx: TenantClient, formationId: string): Promise<boolean> {
+  const formation = await tx.formation.findUnique({
+    where: { id: formationId },
+    select: { _count: { select: { centers: true } } },
+  });
+  return (formation?._count.centers ?? 0) > 1;
+}
+
+/**
+ * Champs renvoyés pour une formation : ses centres (limités au périmètre de l'utilisateur, pour
+ * ne pas révéler les autres) et leur nombre total, qui sert à calculer sharedAcrossCenters.
+ */
+export function formationInclude(scope: CenterScope) {
+  return {
+    centers: { where: scope.center(), select: { id: true, name: true }, orderBy: { name: 'asc' as const } },
+    _count: { select: { centers: true } },
+  };
+}
+
+export function toFormationDTO<T extends { _count: { centers: number } }>({ _count, ...formation }: T) {
+  return { ...formation, sharedAcrossCenters: _count.centers > 1 };
+}
+
+/**
+ * Retirer un centre d'une formation est refusé tant que des classes de cette formation y
+ * existent : elles deviendraient incohérentes (classe d'une formation non proposée dans son centre).
+ */
+export async function assertCentersKeepClasses(tx: TenantClient, formationId: string, centerIds: string[]): Promise<void> {
+  const orphan = await tx.classGroup.findFirst({
+    where: { formationId, centerId: { notIn: centerIds } },
+    select: { center: { select: { name: true } } },
+  });
+  if (orphan) {
+    throw new ApiError(
+      409,
+      `Impossible de retirer le centre "${orphan.center.name}" : des classes de cette formation y sont ouvertes.`,
+      'FORMATION_CENTER_HAS_CLASSES'
+    );
+  }
+}
+
+/**
+ * Modifier ou supprimer une formation partagée entre plusieurs centres affecte les autres
+ * centres (coût, niveaux, échéanciers) : réservé aux administrateurs de l'organisation.
+ */
+export async function assertFormationEditable(tx: TenantClient, formationId: string, scope: CenterScope): Promise<void> {
+  if (scope.isAdmin) return;
+  if (await isFormationShared(tx, formationId)) {
+    throw new ApiError(
+      403,
+      'Cette formation est enseignée dans plusieurs centres : seul un administrateur peut la modifier ou la supprimer.',
+      'SHARED_FORMATION_ADMIN_ONLY'
     );
   }
 }

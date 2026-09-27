@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
-import { findOrgScopedOrThrow } from '@/lib/db/scoped';
+import { findOrgScopedOrThrow, assertOrgCenters, assertOrgRoles } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateUserSchema } from '@/lib/validation/users';
@@ -13,17 +13,31 @@ const SAFE_SELECT = {
   centers: { select: { id: true, name: true } },
 } as const;
 
-export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
+export const GET = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, params }) => {
   const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: params.id, organizationId: orgId }, select: SAFE_SELECT })
+    tx.user.findFirst({
+      where: { id: params.id, organizationId: orgId, ...scope.user(userId) },
+      select: { ...SAFE_SELECT, centers: { where: scope.center(), select: { id: true, name: true } } },
+    })
   );
   return NextResponse.json(user);
 }, { permission: { resource: 'users', action: 'read' } });
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
+/**
+ * Un utilisateur ne peut ni modifier (rôles, statut, centres) ni supprimer son propre compte
+ * depuis la gestion des utilisateurs : son profil se modifie via /api/users/me.
+ */
+function assertNotSelf(targetId: string, userId: string, action: string): void {
+  if (targetId === userId) {
+    throw new ApiError(403, `Vous ne pouvez pas ${action} votre propre compte. Utilisez « Mon Profil ».`, 'SELF_MANAGEMENT_FORBIDDEN');
+  }
+}
+
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, params }) => {
+  assertNotSelf(params.id, userId, 'modifier');
   const body = updateUserSchema.parse(await req.json());
   const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
   );
 
   if (body.matricule !== undefined && body.matricule !== user.matricule) {
@@ -50,6 +64,12 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
     }
   }
 
+  if (body.roles !== undefined) await assertOrgRoles(tx, orgId, body.roles);
+  if (body.centerIds !== undefined) {
+    await assertOrgCenters(tx, orgId, body.centerIds);
+    scope.assertAssignableCenters(body.centerIds);
+  }
+
   const { centerIds, matricule: _ignored, ...rest } = body;
 
   const updated = await tx.user.update({
@@ -63,9 +83,10 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
   return NextResponse.json(updated);
 }, { permission: { resource: 'users', action: 'write' } });
 
-export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
+export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, params }) => {
+  assertNotSelf(params.id, userId, 'supprimer');
   const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
   );
 
   // Empêcher la suppression du dernier ADMIN

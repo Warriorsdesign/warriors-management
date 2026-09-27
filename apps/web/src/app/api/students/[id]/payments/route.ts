@@ -7,9 +7,9 @@ import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 
 type Params = { id: string };
 
-export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
+export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, params }) => {
   const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
   const [schedule, payments] = await Promise.all([
     tx.paymentSchedule.findFirst({ where: { studentId: student.id, organizationId: orgId } }),
@@ -18,10 +18,10 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   return NextResponse.json({ schedule, payments });
 }, { permission: { resource: 'students', action: 'read' } });
 
-export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, params }) => {
+export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, params }) => {
   const body = recordPaymentSchema.parse(await req.json());
   const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
 
   const payment = await tx.payment.create({

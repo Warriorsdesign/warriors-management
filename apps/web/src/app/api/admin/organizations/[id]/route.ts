@@ -30,6 +30,7 @@ export const GET = withAdminRoute(async (_req, { prisma, params }) => {
           matricule: true,
           roles: true,
           status: true,
+          lastLoginAt: true,
           createdAt: true,
         },
       },

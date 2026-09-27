@@ -7,9 +7,9 @@ import { computeClassStatus, getActiveStudentsForClass } from '@/lib/business/cl
 
 type Params = { id: string };
 
-export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
+export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, params }) => {
   const classGroup = await findOrgScopedOrThrow(() =>
-    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.classGroup() } })
   );
   const enrolledCount = await getActiveStudentsForClass(tx, classGroup.id);
   return NextResponse.json({
@@ -19,10 +19,10 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
   });
 }, { permission: { resource: 'classes', action: 'read' } });
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
   const body = updateClassSchema.parse(await req.json());
   const classGroup = await findOrgScopedOrThrow(() =>
-    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.classGroup() } })
   );
   const updated = await tx.classGroup.update({
     where: { id: classGroup.id },
@@ -40,9 +40,9 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => 
   });
 }, { permission: { resource: 'classes', action: 'write' } });
 
-export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, params }) => {
+export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, scope, params }) => {
   const classGroup = await findOrgScopedOrThrow(() =>
-    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.classGroup() } })
   );
   await tx.classGroup.delete({ where: { id: classGroup.id } });
   return NextResponse.json({ success: true });

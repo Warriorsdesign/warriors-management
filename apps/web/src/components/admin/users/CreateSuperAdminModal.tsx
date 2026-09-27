@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { PasswordInput } from "@/components/ui/password-input";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { ShieldAlert, Mail, User, Key, Loader2 } from "lucide-react";
@@ -135,17 +136,15 @@ export function CreateSuperAdminModal({
 
           <div className="space-y-1">
             <label className="text-xs font-semibold text-foreground">Mot de passe *</label>
-            <div className="relative">
-              <Key className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-8 pr-3 py-2 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-              />
-            </div>
+            <PasswordInput
+              required
+              autoComplete="new-password"
+              leftIcon={<Key className="w-3.5 h-3.5" />}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••••••"
+              className="py-2 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0 focus:border-primary"
+            />
           </div>
         </div>
 

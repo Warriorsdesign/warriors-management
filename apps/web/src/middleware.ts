@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyToken, verifyAdminToken } from './lib/auth/jwt';
+import { PASSWORD_CHANGE_ALLOWED_PATHS, PASSWORD_CHANGE_PAGE } from './lib/auth/password-change';
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -94,6 +95,23 @@ export async function middleware(request: NextRequest) {
 
     // Si déjà connecté et tente d'aller sur /login -> rediriger vers la page d'accueil client
     if (pathname === '/login') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    // Mot de passe provisoire : tant qu'il n'est pas changé, seule la page de changement (et les
+    // APIs strictement nécessaires) est accessible. Appliqué ici pour couvrir TOUTES les pages et
+    // APIs, y compris les appels directs qui contourneraient l'interface.
+    if (payload.mustChangePassword) {
+      if (!PASSWORD_CHANGE_ALLOWED_PATHS.includes(pathname)) {
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json(
+            { error: 'Vous devez changer votre mot de passe avant de continuer.', code: 'PASSWORD_CHANGE_REQUIRED' },
+            { status: 403 }
+          );
+        }
+        return NextResponse.redirect(new URL(PASSWORD_CHANGE_PAGE, request.url));
+      }
+    } else if (pathname === PASSWORD_CHANGE_PAGE) {
       return NextResponse.redirect(new URL('/', request.url));
     }
 

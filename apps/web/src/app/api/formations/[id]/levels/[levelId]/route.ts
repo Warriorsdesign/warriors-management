@@ -4,15 +4,16 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateLevelSchema } from '@/lib/validation/formations';
-import type { Level } from '@/lib/business/formations';
+import { assertFormationEditable, type Level } from '@/lib/business/formations';
 
 type Params = { id: string; levelId: string };
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
   const body = updateLevelSchema.parse(await req.json());
   const formation = await findOrgScopedOrThrow(() =>
-    tx.formation.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.formation.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.formation() } })
   );
+  await assertFormationEditable(tx, formation.id, scope);
 
   const levels = (formation.levels as Level[] | null) ?? [];
   const levelExists = levels.some((l) => l.id === params.levelId);

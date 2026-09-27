@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import type { TenantClient } from '@/lib/db';
 import type { Installment } from './paymentSchedule';
 import type { ResolvedPeriod } from '@/lib/api/periodRange';
@@ -19,7 +20,9 @@ export async function getDashboardStats(
   orgId: string,
   centerIds: string[],
   formationIds: string[],
-  period: ResolvedPeriod
+  period: ResolvedPeriod,
+  /** Formations visibles dans le périmètre de centres de l'utilisateur (voir CenterScope.formation). */
+  formationScope: Prisma.FormationWhereInput = {}
 ) {
   const now = new Date();
 
@@ -41,7 +44,7 @@ export async function getDashboardStats(
       include: { classGroup: { select: { formationId: true, formation: { select: { name: true } } } } },
     }),
     tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
-    tx.formation.findMany({ where: { organizationId: orgId } }),
+    tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
   ]);
 
   const studentById = new Map(students.map((s) => [s.id, s]));

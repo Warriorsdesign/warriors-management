@@ -7,12 +7,12 @@ import { changeClassSchema } from '@/lib/validation/students';
 
 type Params = { id: string };
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, params }) => {
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
   const body = changeClassSchema.parse(await req.json());
   const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
-  const classGroup = await tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId } });
+  const classGroup = await tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId, ...scope.classGroup() } });
   if (!classGroup) throw new ApiError(400, 'Classe introuvable.', 'CLASS_NOT_FOUND');
 
   const updated = await tx.student.update({ where: { id: student.id }, data: { classId: body.classId } });

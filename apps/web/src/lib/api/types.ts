@@ -2,6 +2,7 @@ import type {
   Role, UserStatus, Gender, StudentStatus, InstallmentStatus,
   IntervalType, PaymentMethod, ExpenseCategory, ClassStatus,
 } from '@/lib/types/enums';
+import type { OnboardingStatus, OnboardingStepKey } from '@/lib/onboarding/steps';
 
 export interface Paginated<T> {
   data: T[];
@@ -27,6 +28,46 @@ export interface SessionOrganization {
   email: string | null;
   phone: string | null;
   address: string | null;
+  onboardingStatus?: OnboardingStatus;
+  onboardingStep?: OnboardingStepKey | null;
+}
+
+// --- Onboarding ---
+export interface OnboardingStateDTO {
+  organizationName: string;
+  status: OnboardingStatus;
+  step: OnboardingStepKey | null;
+  skippedSteps: OnboardingStepKey[];
+  completedAt: string | null;
+  counts: { centers: number; formations: number; classes: number; users: number; students: number };
+  limits: { planName: string; maxCenters: number; maxStudents: number } | null;
+}
+
+// --- Import Excel ---
+export type ImportType = 'formations' | 'classes' | 'students';
+export interface ImportRowIssue {
+  row: number; // numéro de ligne Excel (1 = en-têtes)
+  column?: string;
+  message: string;
+  kind: 'error' | 'duplicate';
+}
+export interface ImportAnalysisDTO {
+  type: ImportType;
+  fileHash: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  duplicateRows: number;
+  fileErrors: string[]; // erreurs bloquant tout l'import
+  warnings: string[];
+  issues: ImportRowIssue[];
+  preview: { row: number; values: Record<string, string> }[];
+  columns: { key: string; label: string }[];
+  canImport: boolean;
+}
+export interface ImportCommitDTO {
+  imported: number;
+  skipped: number;
 }
 
 // --- Organization ---
@@ -73,6 +114,10 @@ export interface FormationDTO {
   levels: FormationLevel[];
   totalCost: number;
   status: 'actif' | 'inactif';
+  /** Proposée dans au moins deux centres : modification réservée aux administrateurs. */
+  sharedAcrossCenters?: boolean;
+  /** Centres où la formation est proposée (limités au périmètre de l'utilisateur connecté). */
+  centers: { id: string; name: string }[];
   organizationId: string;
   createdAt: string;
   updatedAt: string;
@@ -84,6 +129,8 @@ export interface CreateFormationInput {
   hasLevels: boolean;
   levelCount?: number;
   status?: 'actif' | 'inactif';
+  /** Au moins un centre. */
+  centerIds: string[];
 }
 export type UpdateFormationInput = Partial<CreateFormationInput>;
 

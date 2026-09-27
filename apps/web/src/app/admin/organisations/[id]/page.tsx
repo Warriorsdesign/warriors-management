@@ -21,10 +21,19 @@ import {
   Power,
   CreditCard,
   AlertCircle,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { OrganizationModal } from "@/components/admin/organizations/OrganizationModal";
 import { SuspendOrganizationModal } from "@/components/admin/organizations/SuspendOrganizationModal";
+import { ResetOnboardingModal } from "@/components/admin/organizations/ResetOnboardingModal";
+
+const ONBOARDING_BADGE: Record<string, { label: string; className: string }> = {
+  non_commence: { label: "Configuration non commencée", className: "bg-slate-50 text-slate-600 border-slate-200" },
+  en_cours: { label: "Configuration en cours", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  termine: { label: "Configuration terminée", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+};
 
 export default function AdminOrganizationDetailPage() {
   const params = useParams();
@@ -32,6 +41,7 @@ export default function AdminOrganizationDetailPage() {
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isSuspendOpen, setIsSuspendOpen] = useState(false);
+  const [isResetOnboardingOpen, setIsResetOnboardingOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "centers" | "users" | "subscription">("overview");
 
   const { data, isLoading, error, mutate } = useSWR<{
@@ -42,6 +52,9 @@ export default function AdminOrganizationDetailPage() {
       phone: string | null;
       address: string | null;
       status: string;
+      onboardingStatus: string;
+      onboardingStep: string | null;
+      onboardingCompletedAt: string | null;
       createdAt: string;
       updatedAt: string;
       subscription: {
@@ -68,6 +81,7 @@ export default function AdminOrganizationDetailPage() {
         matricule: string;
         roles: string[];
         status: string;
+        lastLoginAt: string | null;
         createdAt: string;
       }>;
       _count: {
@@ -133,7 +147,7 @@ export default function AdminOrganizationDetailPage() {
             <Building2 className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h2 className="text-2xl font-bold text-foreground">{org.name}</h2>
               <span
                 className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${
@@ -149,6 +163,13 @@ export default function AdminOrganizationDetailPage() {
                 )}
                 {org.status}
               </span>
+              {ONBOARDING_BADGE[org.onboardingStatus] && (
+                <span className={`inline-flex items-center gap-1 whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-semibold border ${ONBOARDING_BADGE[org.onboardingStatus].className}`}>
+                  <Sparkles className="w-3 h-3" />
+                  {ONBOARDING_BADGE[org.onboardingStatus].label}
+                  {org.onboardingStatus === "en_cours" && org.onboardingStep && ` (${org.onboardingStep})`}
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-4">
               {org.email && (
@@ -177,17 +198,24 @@ export default function AdminOrganizationDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <button
+            onClick={() => setIsResetOnboardingOpen(true)}
+            className="inline-flex items-center gap-2 whitespace-nowrap px-3.5 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-all"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Relancer l&apos;onboarding</span>
+          </button>
           <button
             onClick={() => setIsEditOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-all"
+            className="inline-flex items-center gap-2 whitespace-nowrap px-3.5 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-all"
           >
             <Edit2 className="w-3.5 h-3.5" />
             <span>Modifier</span>
           </button>
           <button
             onClick={() => setIsSuspendOpen(true)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all ${
+            className={`inline-flex items-center gap-2 whitespace-nowrap px-3.5 py-2 rounded-lg text-xs font-semibold shadow-sm transition-all ${
               org.status === "actif"
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 : "bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -381,6 +409,9 @@ export default function AdminOrganizationDetailPage() {
                     <p className="text-muted-foreground">
                       {u.email} · Matricule: <span className="font-mono text-foreground">{u.matricule}</span>
                     </p>
+                    <p className="text-muted-foreground">
+                      {u.lastLoginAt ? `Dernière connexion : ${new Date(u.lastLoginAt).toLocaleString("fr-FR")}` : "Jamais connecté"}
+                    </p>
                     <div className="flex items-center gap-1 pt-1">
                       {u.roles.map((r) => (
                         <span
@@ -468,6 +499,13 @@ export default function AdminOrganizationDetailPage() {
       <SuspendOrganizationModal
         isOpen={isSuspendOpen}
         onClose={() => setIsSuspendOpen(false)}
+        organization={org}
+        onSuccess={() => mutate()}
+      />
+
+      <ResetOnboardingModal
+        isOpen={isResetOnboardingOpen}
+        onClose={() => setIsResetOnboardingOpen(false)}
         organization={org}
         onSuccess={() => mutate()}
       />

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { adminPrisma } from '@/lib/db/admin';
 import bcrypt from 'bcryptjs';
-import { signToken } from '@/lib/auth/jwt';
 import { subscriptionService } from '@/lib/services/subscription.service';
+import { isOnboardingRequired, PASSWORD_CHANGE_PAGE, setAuthCookie } from '@/lib/auth/session';
 
 export async function POST(request: Request) {
   try {
@@ -57,6 +57,7 @@ export async function POST(request: Request) {
     }
 
     // Vérifier si l'organisation cliente est suspendue
+    let onboardingRequired = false;
     if (user.organizationId) {
       const org = await adminPrisma.organization.findUnique({
         where: { id: user.organizationId },
@@ -68,16 +69,16 @@ export async function POST(request: Request) {
           { status: 403 }
         );
       }
+      onboardingRequired = await isOnboardingRequired(adminPrisma, user.organizationId, user.roles);
     }
 
-    // Sign JWT
-    const token = await signToken({
-      userId: user.id,
-      orgId: user.organizationId ?? '',
-      roles: user.roles,
-    });
+    await adminPrisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
-    // Create the response and set the cookie
+    // Mot de passe provisoire (création ou réinitialisation par un tiers) : le middleware
+    // cantonne la session à la page de changement de mot de passe tant que ce drapeau est présent.
+    const passwordChangeRequired = user.mustChangePassword;
+    const redirectTo = passwordChangeRequired ? PASSWORD_CHANGE_PAGE : onboardingRequired ? '/onboarding' : null;
+
     const response = NextResponse.json({
       success: true,
       user: {
@@ -88,16 +89,16 @@ export async function POST(request: Request) {
         roles: user.roles,
         organizationId: user.organizationId,
       },
+      onboardingRequired,
+      passwordChangeRequired,
+      redirectTo,
     });
 
-    response.cookies.set({
-      name: 'auth_token',
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24, // 24 hours
+    await setAuthCookie(response, {
+      userId: user.id,
+      orgId: user.organizationId ?? '',
+      roles: user.roles,
+      ...(passwordChangeRequired ? { mustChangePassword: true } : {}),
     });
 
     return response;

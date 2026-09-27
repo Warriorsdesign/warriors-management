@@ -51,7 +51,7 @@ export default function ClassesPage() {
     setFormData({
       name: "",
       formationId: formations.length > 0 ? formations[0].id : "",
-      centerId: centers.length > 0 ? centers[0].id : "",
+      centerId: firstCenterOf(formations[0]?.id),
       capacity: "30",
     });
     setErrors({});
@@ -128,6 +128,13 @@ export default function ClassesPage() {
 
   const formationOptions = formations.map(f => ({ label: f.name, value: f.id }));
   const centerOptions = centers.map(c => ({ label: c.name, value: c.id }));
+  // Une classe ne s'ouvre que dans un centre où sa formation est proposée (contrôlé aussi côté API).
+  const centersOfFormation = (formationId: string) =>
+    (formations.find(f => f.id === formationId)?.centers ?? []).filter(fc => centers.some(c => c.id === fc.id));
+  function firstCenterOf(formationId: string | undefined) {
+    return formationId ? centersOfFormation(formationId)[0]?.id ?? "" : "";
+  }
+  const creationCenterOptions = centersOfFormation(formData.formationId).map(c => ({ label: c.name, value: c.id }));
 
   const filteredClasses = classes.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -282,7 +289,7 @@ export default function ClassesPage() {
               options={formationOptions}
               value={formData.formationId}
               onChange={(val) => {
-                setFormData({ ...formData, formationId: val });
+                setFormData({ ...formData, formationId: val, centerId: firstCenterOf(val) });
                 if (errors.formationId) setErrors({ ...errors, formationId: '' });
               }}
               placeholder="Sélectionner une formation"
@@ -295,7 +302,7 @@ export default function ClassesPage() {
           <div className="space-y-2">
             <label className="text-sm font-medium">Centre</label>
             <Select
-              options={centerOptions}
+              options={editingClass ? centerOptions : creationCenterOptions}
               value={formData.centerId}
               onChange={(val) => {
                 setFormData({ ...formData, centerId: val });

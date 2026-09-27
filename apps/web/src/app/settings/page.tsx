@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Upload, Building2, Save, User as UserIcon, CreditCard } from "lucide-react";
+import { Upload, Building2, Save, User as UserIcon, CreditCard, FileSpreadsheet } from "lucide-react";
 import { useSession, useCan, updateOwnProfile, changeOwnPassword } from "@/lib/hooks/useSession";
 import { useOrganization, updateOrganization } from "@/lib/hooks/useOrganization";
 import { ApiClientError } from "@/lib/api/client";
@@ -9,15 +9,18 @@ import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { SubscriptionSettings } from "@/components/settings/SubscriptionSettings";
 import { RoleSettings } from "@/components/settings/RoleSettings";
+import { ConfigurationSettings } from "@/components/settings/ConfigurationSettings";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Shield } from "lucide-react";
 
-type Tab = "profile" | "organization" | "roles" | "subscription";
+type Tab = "profile" | "organization" | "roles" | "subscription" | "configuration";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
   const { user } = useSession();
   const { organization } = useOrganization();
   const canReadOrg = useCan("organization", "read");
+  const canConfigure = useCan("organization", "write");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [isSubmittingOrg, setIsSubmittingOrg] = useState(false);
@@ -223,6 +226,20 @@ export default function SettingsPage() {
                     <CreditCard className="w-4 h-4" />
                     Abonnement & Factures
                   </button>
+                  {canConfigure && (
+                    <button
+                      onClick={() => setActiveTab("configuration")}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                        activeTab === "configuration"
+                          ? "bg-secondary text-foreground font-semibold"
+                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Configuration & import
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -331,8 +348,8 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Mot de passe actuel</label>
-                  <input
-                    type="password"
+                  <PasswordInput
+                    autoComplete="current-password"
                     value={passwordFormData.currentPassword}
                     onChange={e => setPasswordFormData({...passwordFormData, currentPassword: e.target.value})}
                     className="w-full p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
@@ -341,12 +358,14 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Nouveau mot de passe</label>
                   <div className="flex gap-3">
-                    <input
-                      type="password"
+                    <div className="flex-1">
+                    <PasswordInput
+                      autoComplete="new-password"
                       value={passwordFormData.newPassword}
                       onChange={e => setPasswordFormData({...passwordFormData, newPassword: e.target.value})}
-                      className="flex-1 p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
+                      className="p-2.5 border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all text-sm"
                     />
+                    </div>
                     <button
                       type="button"
                       disabled={isSubmittingPassword}
@@ -480,6 +499,11 @@ export default function SettingsPage() {
           {/* ABONNEMENT TAB */}
           {activeTab === "subscription" && canReadOrg && (
             <SubscriptionSettings />
+          )}
+
+          {/* CONFIGURATION TAB */}
+          {activeTab === "configuration" && canConfigure && (
+            <ConfigurationSettings />
           )}
 
         </div>

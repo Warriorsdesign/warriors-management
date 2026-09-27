@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
-import { PERMISSIONS } from '@/lib/auth/roles';
+import { ROLES } from '@/lib/auth/roles';
 import { createCenterSchema } from '@/lib/validation/centers';
 import { ApiError } from '@/lib/api/errors';
 
-export const GET = withApiRoute(async (_req, { tx, orgId }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, scope }) => {
   const centers = await tx.center.findMany({
-    where: { organizationId: orgId },
+    where: { organizationId: orgId, ...scope.center() },
     orderBy: { name: 'asc' },
   });
   return NextResponse.json({ data: centers });
@@ -38,4 +38,5 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
 
   const center = await tx.center.create({ data: { ...body, organizationId: orgId } });
   return NextResponse.json(center, { status: 201 });
-}, { permission: { resource: 'centers', action: 'write' } });
+// Seuls les administrateurs de l'organisation créent des centres (ils définissent le périmètre des utilisateurs).
+}, { allowedRoles: [ROLES.ADMIN], permission: { resource: 'centers', action: 'write' } });

@@ -29,6 +29,7 @@ interface OrganizationItem {
   phone: string | null;
   address: string | null;
   status: string;
+  onboardingStatus?: string;
   createdAt: string;
   subscription?: {
     plan: string;
@@ -242,6 +243,11 @@ export default function AdminOrganizationsPage() {
                         )}
                         {org.status}
                       </span>
+                      {org.onboardingStatus && org.onboardingStatus !== "termine" && (
+                        <span className="block mt-1 text-[10px] font-medium text-amber-700">
+                          {org.onboardingStatus === "en_cours" ? "Configuration en cours" : "Configuration non commencée"}
+                        </span>
+                      )}
                     </td>
 
                     {/* Date Création */}

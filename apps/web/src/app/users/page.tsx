@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy, ShieldAlert } from 'lucide-react';
-import { useUsers, createUser, updateUser, deleteUser } from '@/lib/hooks/useUsers';
+import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy, ShieldAlert, KeyRound } from 'lucide-react';
+import { useUsers, createUser, updateUser, deleteUser, resetUserPassword } from '@/lib/hooks/useUsers';
 import { useCenters } from '@/lib/hooks/useCenters';
-import { useCan } from '@/lib/hooks/useSession';
+import { useCan, useSession } from '@/lib/hooks/useSession';
 import { ApiClientError } from '@/lib/api/client';
 import type { UserDTO } from '@/lib/api/types';
 import { useRoles } from '@/lib/hooks/useRoles';
@@ -31,6 +31,11 @@ export default function UsersPage() {
   const { roles, isLoading: isRolesLoading } = useRoles();
   const { centers } = useCenters();
   const canWrite = useCan('users', 'write');
+  const { user: currentUser, roles: currentRoles } = useSession();
+  // Réinitialisation des mots de passe : réservée au rôle ADMIN (contrôlé aussi côté serveur).
+  const canResetPasswords = currentRoles.includes('ADMIN');
+  const [resetTarget, setResetTarget] = useState<UserDTO | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -42,7 +47,7 @@ export default function UsersPage() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newUserInfo, setNewUserInfo] = useState<{ matricule: string; password: string } | null>(null);
+  const [newUserInfo, setNewUserInfo] = useState<{ matricule: string; password: string; name?: string; isReset?: boolean } | null>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -173,6 +178,26 @@ export default function UsersPage() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!resetTarget) return;
+    setIsResetting(true);
+    try {
+      const { matricule, provisionalPassword } = await resetUserPassword(resetTarget.id);
+      setNewUserInfo({
+        matricule: matricule || '',
+        password: provisionalPassword,
+        name: `${resetTarget.firstName} ${resetTarget.lastName}`,
+        isReset: true,
+      });
+      setResetTarget(null);
+      useUIStore.getState().showToast('Mot de passe réinitialisé.', 'success');
+    } catch (err) {
+      useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : 'Une erreur est survenue.', 'error');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   if (error instanceof ApiClientError && error.status === 403) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
@@ -256,7 +281,12 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredUsers.map((user) => (
             <Card key={user.id} className="pt-6 pb-0 overflow-visible relative group flex flex-col items-center bg-card border-border hover:shadow-md transition-shadow rounded-xl shadow-sm">
-              {canWrite && (
+              {/* Son propre compte ne se gère pas ici (modification/suppression bloquées aussi côté API) : voir Mon Profil. */}
+              {user.id === currentUser?.id ? (
+                <span className="absolute right-3 top-3 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-muted-foreground">
+                  Vous
+                </span>
+              ) : canWrite && (
                 <div className="absolute right-3 top-3 action-dropdown-container">
                   <button
                     onClick={(e) => {
@@ -269,7 +299,7 @@ export default function UsersPage() {
                   </button>
 
                   {openDropdownId === user.id && (
-                    <div className="absolute right-0 top-full mt-1 w-36 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                    <div className="absolute right-0 top-full mt-1 w-60 bg-background border border-border rounded-md shadow-lg py-1 z-50">
                       <button
                         onClick={() => {
                           openEditModal(user);
@@ -279,6 +309,17 @@ export default function UsersPage() {
                       >
                         <Edit2 className="w-4 h-4" /> Modifier
                       </button>
+                      {canResetPasswords && (
+                        <button
+                          onClick={() => {
+                            setResetTarget(user);
+                            setOpenDropdownId(null);
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-secondary w-full text-left"
+                        >
+                          <KeyRound className="w-4 h-4" /> Réinitialiser le mot de passe
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setEditingUser(user);
@@ -496,6 +537,13 @@ export default function UsersPage() {
                   <p className="text-xs text-muted-foreground col-span-full">Aucun centre disponible. Veuillez d'abord créer un centre.</p>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.roles.includes('ADMIN')
+                  ? 'Un administrateur a toujours accès à tous les centres de l’organisation.'
+                  : formData.centerIds.length > 0
+                    ? 'L’utilisateur ne verra que les données (étudiants, classes, formations, paiements, dépenses…) des centres cochés.'
+                    : 'Aucun centre coché : l’utilisateur aura accès à tous les centres de l’organisation.'}
+              </p>
             </div>
           </div>
 
@@ -553,11 +601,47 @@ export default function UsersPage() {
         </div>
       </Modal>
 
+      {/* Modal Confirmation Réinitialisation */}
+      <Modal
+        isOpen={resetTarget !== null}
+        onClose={() => !isResetting && setResetTarget(null)}
+        title="Réinitialiser le mot de passe"
+      >
+        <div className="space-y-6 py-2">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center">
+              <KeyRound className="w-8 h-8 text-amber-500" />
+            </div>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Un nouveau mot de passe provisoire va être généré pour <span className="font-semibold text-foreground">{resetTarget?.firstName} {resetTarget?.lastName}</span>.
+              <br />Son mot de passe actuel <span className="text-destructive font-medium">cessera immédiatement de fonctionner</span>.
+            </p>
+          </div>
+
+          <div className="flex justify-center gap-3 pt-4">
+            <button
+              onClick={() => setResetTarget(null)}
+              disabled={isResetting}
+              className="px-5 py-2.5 rounded-md text-sm font-medium border border-border hover:bg-secondary transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleResetPassword}
+              disabled={isResetting}
+              className="px-5 py-2.5 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-colors disabled:opacity-50"
+            >
+              {isResetting ? 'Réinitialisation...' : 'Oui, réinitialiser'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Modal Mot de Passe */}
       <Modal
         isOpen={newUserInfo !== null}
         onClose={() => setNewUserInfo(null)}
-        title="Compte créé avec succès"
+        title={newUserInfo?.isReset ? 'Mot de passe réinitialisé' : 'Compte créé avec succès'}
       >
         <div className="space-y-6 py-4">
           <div className="flex flex-col items-center justify-center text-center space-y-4">
@@ -565,8 +649,17 @@ export default function UsersPage() {
               <Mail className="w-8 h-8 text-emerald-500" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
-              L'utilisateur a été ajouté. Voici ses identifiants de connexion. <br />
-              <span className="font-semibold text-rose-500">Ce mot de passe devra être changé lors de la première connexion.</span>
+              {newUserInfo?.isReset ? (
+                <>
+                  Nouveaux identifiants de <span className="font-semibold text-foreground">{newUserInfo.name}</span>. L&apos;ancien mot de passe ne fonctionne plus. <br />
+                  <span className="font-semibold text-rose-500">Ce mot de passe ne sera plus affiché. L&apos;utilisateur devra le changer à sa prochaine connexion.</span>
+                </>
+              ) : (
+                <>
+                  L&apos;utilisateur a été ajouté. Voici ses identifiants de connexion. <br />
+                  <span className="font-semibold text-rose-500">Ce mot de passe devra être changé lors de la première connexion.</span>
+                </>
+              )}
             </p>
           </div>
 

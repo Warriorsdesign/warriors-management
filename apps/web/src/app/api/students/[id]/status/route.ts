@@ -9,10 +9,10 @@ import { changeStatusSchema } from '@/lib/validation/students';
 type Params = { id: string };
 type ProgressionLog = { id: string; date: string; status: string; level?: string | null; recordedBy: string; reason?: string };
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, params }) => {
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, params }) => {
   const body = changeStatusSchema.parse(await req.json());
   const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId } })
+    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
 
   const existingLogs = (student.progressionLogs as ProgressionLog[] | null) ?? [];

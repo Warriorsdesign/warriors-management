@@ -1,17 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Edit, Search, X, Check, MoreHorizontal, Trash2 } from "lucide-react";
+import { Plus, Edit, Search, X, Check, MoreHorizontal, Trash2, Lock } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { useFormations, createFormation, updateFormation, deleteFormation, renameFormationLevel } from "@/lib/hooks/useFormations";
-import { useClasses } from "@/lib/hooks/useClasses";
 import { useCenters } from "@/lib/hooks/useCenters";
 import { useStudents } from "@/lib/hooks/useStudents";
-import { useCan } from "@/lib/hooks/useSession";
+import { useCan, useSession } from "@/lib/hooks/useSession";
+import { FormationCentersField, defaultFormationCenters } from "@/components/formations/FormationCentersField";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
@@ -22,9 +22,13 @@ export default function FormationsPage() {
   const debouncedSearch = useDebouncedValue(searchQuery);
   const selectedCenterIds = useUIStore((state) => state.selectedCenterIds);
   const { formations, isLoading } = useFormations({ search: debouncedSearch, centerId: selectedCenterIds });
-  const { classes } = useClasses();
   const { centers } = useCenters();
   const canWrite = useCan("formations", "write");
+  const { roles } = useSession();
+  // Formation enseignée dans plusieurs centres : modification réservée aux administrateurs (contrôlé aussi côté API).
+  const canEditFormation = (f: FormationDTO) => canWrite && (roles.includes("ADMIN") || !f.sharedAcrossCenters);
+  // Non-administrateur n'ayant accès qu'à un centre : ce centre est imposé à ses formations.
+  const isCenterLocked = !roles.includes("ADMIN") && centers.length === 1;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingFormation, setEditingFormation] = useState<FormationDTO | null>(null);
@@ -44,7 +48,8 @@ export default function FormationsPage() {
     totalCost: "",
     hasLevels: false,
     levelCount: "",
-    status: "actif"
+    status: "actif",
+    centerIds: [] as string[],
   });
 
   // Effectifs de la formation dépliée, chargés uniquement à la demande (évite de charger
@@ -70,7 +75,8 @@ export default function FormationsPage() {
       totalCost: "",
       hasLevels: false,
       levelCount: "",
-      status: "actif"
+      status: "actif",
+      centerIds: defaultFormationCenters(centers),
     });
     setErrors({});
     setIsModalOpen(true);
@@ -84,7 +90,8 @@ export default function FormationsPage() {
       totalCost: f.totalCost.toString(),
       hasLevels: f.hasLevels || false,
       levelCount: f.levelCount ? f.levelCount.toString() : "",
-      status: f.status || "actif"
+      status: f.status || "actif",
+      centerIds: f.centers.map((c) => c.id),
     });
     setErrors({});
     setIsModalOpen(true);
@@ -98,6 +105,7 @@ export default function FormationsPage() {
     if (!formData.duration || parseInt(formData.duration) <= 0) newErrors.duration = "Durée invalide.";
     if (!formData.totalCost || parseInt(formData.totalCost) < 0) newErrors.totalCost = "Coût total invalide.";
     if (formData.hasLevels && (!formData.levelCount || parseInt(formData.levelCount) <= 0)) newErrors.levelCount = "Nombre de niveaux invalide.";
+    if (formData.centerIds.length === 0) newErrors.centerIds = "Veuillez choisir au moins un centre.";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -115,6 +123,7 @@ export default function FormationsPage() {
         hasLevels: formData.hasLevels,
         levelCount,
         status: formData.status as "actif" | "inactif",
+        centerIds: formData.centerIds,
       };
       if (editingFormation) {
         await updateFormation(editingFormation.id, payload);
@@ -157,12 +166,6 @@ export default function FormationsPage() {
     }
   };
 
-  const getCentersForFormation = (formationId: string) => {
-    const formationClasses = classes.filter(c => c.formationId === formationId);
-    const centerIds = Array.from(new Set(formationClasses.map(c => c.centerId)));
-    const formationCenters = centers.filter(c => centerIds.includes(c.id));
-    return formationCenters.map(c => c.name).join(', ') || '-';
-  };
 
   return (
     <div className="space-y-6 pb-10">
@@ -236,13 +239,23 @@ export default function FormationsPage() {
                         {f.hasLevels ? `${f.levelCount || f.levels?.length || 0} niveaux` : '-'}
                       </td>
                       <td className="px-6 py-4 font-medium">{formatCurrency(f.totalCost)}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{getCentersForFormation(f.id)}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{f.centers.map((c) => c.name).join(', ') || '-'}</td>
                       <td className="px-6 py-4">
                         <Badge variant="outline" className={`font-normal ${f.status === 'inactif' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                           {f.status === 'inactif' ? 'Inactif' : 'Actif'}
                         </Badge>
                       </td>
-                      {canWrite && (
+                      {canWrite && !canEditFormation(f) && (
+                        <td className="px-6 py-4 text-right">
+                          <span className="relative inline-flex group/lock p-1.5 text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                            <Lock className="w-4 h-4" />
+                            <span className="pointer-events-none absolute right-0 top-full mt-1 w-64 rounded-md border border-border bg-background px-3 py-2 text-left text-xs font-normal text-muted-foreground shadow-lg opacity-0 group-hover/lock:opacity-100 transition-opacity z-50">
+                              Formation enseignée dans plusieurs centres : seul un administrateur peut la modifier ou la supprimer.
+                            </span>
+                          </span>
+                        </td>
+                      )}
+                      {canEditFormation(f) && (
                         <td className="px-6 py-4 text-right">
                           <div className="relative inline-flex items-center action-dropdown-container">
                             <button
@@ -332,7 +345,7 @@ export default function FormationsPage() {
                                         ) : (
                                           <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium text-foreground">{level.name}</span>
-                                            {canWrite && (
+                                            {canEditFormation(f) && (
                                               <button
                                                 onClick={() => {
                                                   setEditingLevelId(level.id);
@@ -428,6 +441,17 @@ export default function FormationsPage() {
               {errors.totalCost && <p className="text-xs text-red-500 mt-1">{errors.totalCost}</p>}
             </div>
           </div>
+
+          <FormationCentersField
+            centers={centers}
+            value={formData.centerIds}
+            locked={isCenterLocked}
+            error={errors.centerIds}
+            onChange={(centerIds) => {
+              setFormData({ ...formData, centerIds });
+              if (errors.centerIds) setErrors({ ...errors, centerIds: '' });
+            }}
+          />
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Statut</label>

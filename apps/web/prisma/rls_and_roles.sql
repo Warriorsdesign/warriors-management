@@ -129,6 +129,18 @@ CREATE POLICY tenant_isolation_centerusers ON "_CenterUsers"
   USING (EXISTS (SELECT 1 FROM "Center" WHERE "Center"."id" = "_CenterUsers"."A" AND "Center"."organizationId" = current_setting('app.org_id', true)))
   WITH CHECK (EXISTS (SELECT 1 FROM "Center" WHERE "Center"."id" = "_CenterUsers"."A" AND "Center"."organizationId" = current_setting('app.org_id', true)));
 
+-- 3ter. Table de jonction implicite Prisma pour Formation.centers <-> Center.formations ("A"=Center.id, "B"=Formation.id).
+ALTER TABLE "_FormationCenters" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "_FormationCenters" FORCE  ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS tenant_isolation_formationcenters ON "_FormationCenters";
+CREATE POLICY tenant_isolation_formationcenters ON "_FormationCenters"
+  FOR ALL TO app_user
+  USING (EXISTS (SELECT 1 FROM "Center" c WHERE c."id" = "_FormationCenters"."A" AND c."organizationId" = current_setting('app.org_id', true))
+     AND EXISTS (SELECT 1 FROM "Formation" f WHERE f."id" = "_FormationCenters"."B" AND f."organizationId" = current_setting('app.org_id', true)))
+  WITH CHECK (EXISTS (SELECT 1 FROM "Center" c WHERE c."id" = "_FormationCenters"."A" AND c."organizationId" = current_setting('app.org_id', true))
+     AND EXISTS (SELECT 1 FROM "Formation" f WHERE f."id" = "_FormationCenters"."B" AND f."organizationId" = current_setting('app.org_id', true)));
+
 -- 4. Politique dédiée à `app_auth` (lookup par email au login, avant que l'org soit connue).
 --    Lecture seule, restreinte à la table User.
 DROP POLICY IF EXISTS auth_read_user ON "User";

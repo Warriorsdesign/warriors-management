@@ -113,6 +113,7 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
           lastName: initialAdmin.lastName?.trim() || org.name,
           email: initialAdmin.email.trim().toLowerCase(),
           passwordHash,
+          mustChangePassword: true, // mot de passe fixé par le Super Admin : à changer à la première connexion
           roles: ['ADMIN'],
           status: 'actif',
           isSuperAdmin: false,

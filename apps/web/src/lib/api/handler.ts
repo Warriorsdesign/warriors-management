@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withTenantContext, type TenantClient } from '@/lib/db';
 import { getRequestContext, type RequestContext } from '@/lib/auth/context';
 import { requireRole } from '@/lib/auth/guards';
+import { hasPermission } from '@/lib/auth/permissions';
+import { loadCenterScope, type CenterScope } from '@/lib/auth/centerScope';
 import type { Role } from '@/lib/auth/roles';
 import { ApiError, toErrorResponse } from './errors';
 
 interface RouteCtx<P> extends RequestContext {
   tx: TenantClient;
+  /** Centres accessibles à l'utilisateur (voir lib/auth/centerScope.ts) : à appliquer à toute donnée rattachée à un centre. */
+  scope: CenterScope;
   params: P;
   searchParams: URLSearchParams;
 }
@@ -22,6 +26,8 @@ export function withApiRoute<P = Record<string, string>>(
   opts?: { 
     allowedRoles?: readonly Role[];
     permission?: { resource: string; action: 'read' | 'write' };
+    /** Timeout (ms) de la transaction RLS, pour les traitements de masse. Défaut : 15 s. */
+    transactionTimeout?: number;
   }
 ) {
   return async (req: NextRequest, routeArgs: { params: P }) => {
@@ -45,26 +51,29 @@ export function withApiRoute<P = Record<string, string>>(
             throw new ApiError(403, 'Accès refusé. Aucun rôle assigné.', 'FORBIDDEN');
           }
           
-          const hasPerm = await tx.rolePermission.findFirst({
-            where: {
-              role: { name: { in: requestCtx.roles } },
-              resource: opts.permission.resource,
-              ...(opts.permission.action === 'read' ? { canRead: true } : { canWrite: true })
-            }
-          });
-          
+          const hasPerm = await hasPermission(
+            tx,
+            requestCtx.orgId,
+            requestCtx.roles,
+            opts.permission.resource,
+            opts.permission.action
+          );
+
           if (!hasPerm) {
              throw new ApiError(403, 'Permission insuffisante pour cette action.', 'FORBIDDEN');
           }
         }
 
+        const scope = await loadCenterScope(tx, requestCtx.orgId, requestCtx.userId);
+
         return handler(req, {
           ...requestCtx,
           tx,
+          scope,
           params: routeArgs.params,
           searchParams: req.nextUrl.searchParams,
         });
-      });
+      }, { timeout: opts?.transactionTimeout });
     } catch (err) {
       return toErrorResponse(err);
     }

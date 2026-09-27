@@ -24,7 +24,8 @@ export class ApiClientError extends Error {
  */
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };
-  if (init?.body) headers['Content-Type'] = 'application/json';
+  // FormData (upload de fichier) : le navigateur fixe lui-même le Content-Type multipart et sa boundary.
+  if (init?.body && !(init.body instanceof FormData)) headers['Content-Type'] = 'application/json';
 
   const res = await fetch(path, { ...init, headers, credentials: 'include' });
 
@@ -34,6 +35,10 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
   if (!res.ok) {
     if (res.status === 401 && typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login';
+    }
+    // Mot de passe provisoire non changé (voir middleware.ts) : retour à la page dédiée.
+    if (body.code === 'PASSWORD_CHANGE_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
+      window.location.href = '/change-password';
     }
     throw new ApiClientError(res.status, body.error ?? 'Une erreur est survenue.', body.code, body.details);
   }

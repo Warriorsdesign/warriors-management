@@ -23,11 +23,13 @@ function LoginForm() {
     setErrorMsg("");
 
     try {
-      await apiFetch("/api/auth/login", {
+      const { redirectTo } = await apiFetch<{ redirectTo?: string | null }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ matricule, password }),
       });
-      router.push(searchParams.get("redirect") ?? "/");
+      // Priorité : changement du mot de passe provisoire, puis assistant de configuration,
+      // puis la page demandée avant la connexion.
+      router.push(redirectTo ?? searchParams.get("redirect") ?? "/");
       router.refresh();
     } catch (err) {
       setErrorMsg(err instanceof ApiClientError ? err.message : "Une erreur est survenue.");

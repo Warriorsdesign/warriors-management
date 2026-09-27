@@ -7,10 +7,10 @@ import { createPaymentSchema } from '@/lib/validation/payments';
 import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 import { parseCenterIds } from '@/lib/api/centerFilter';
 
-export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
   const studentId = searchParams.get('studentId') ?? undefined;
   const search = searchParams.get('search')?.trim();
-  const centerIds = parseCenterIds(searchParams);
+  const centerIds = scope.effective(parseCenterIds(searchParams));
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') ?? '10', 10) || 10));
 
@@ -52,11 +52,11 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   return NextResponse.json({ data: payments, meta: { total, page, pageSize } });
 }, { permission: { resource: 'payments', action: 'read' } });
 
-export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
+export const POST = withApiRoute(async (req, { tx, orgId, userId, scope }) => {
   const body = createPaymentSchema.parse(await req.json());
 
   const student = await findOrgScopedOrThrow(
-    () => tx.student.findFirst({ where: { id: body.studentId, organizationId: orgId } }),
+    () => tx.student.findFirst({ where: { id: body.studentId, organizationId: orgId, ...scope.student() } }),
     'Student not found'
   );
   if (!student) throw new ApiError(400, 'Étudiant introuvable.', 'STUDENT_NOT_FOUND');

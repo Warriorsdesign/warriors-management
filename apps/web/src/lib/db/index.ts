@@ -20,7 +20,8 @@ export type TenantClient = Omit<PrismaClient, "$connect" | "$disconnect" | "$on"
  */
 export async function withTenantContext<T>(
   orgId: string,
-  callback: (tx: TenantClient) => Promise<T>
+  callback: (tx: TenantClient) => Promise<T>,
+  options?: { timeout?: number }
 ): Promise<T> {
   if (!orgId) {
     throw new Error('Tenant context requires an organization ID.');
@@ -40,6 +41,7 @@ export async function withTenantContext<T>(
     // sur l'acquisition de connexion ; les timeouts par défaut de Prisma (maxWait 2s,
     // timeout 5s) sont trop stricts pour cet environnement.
     maxWait: 10000,
-    timeout: 15000,
+    // Surchargeable pour les traitements de masse (import Excel).
+    timeout: options?.timeout ?? 15000,
   });
 }

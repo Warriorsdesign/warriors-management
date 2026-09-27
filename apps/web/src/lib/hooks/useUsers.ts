@@ -26,3 +26,11 @@ export async function deleteUser(id: string) {
   await revalidateResource(KEY);
   return result;
 }
+
+/** Réservé aux administrateurs : renvoie un mot de passe provisoire à transmettre à l'utilisateur. */
+export async function resetUserPassword(id: string) {
+  return apiFetch<{ matricule: string | null; provisionalPassword: string }>(`${KEY}/${id}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}

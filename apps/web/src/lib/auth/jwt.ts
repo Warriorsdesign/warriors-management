@@ -12,6 +12,8 @@ export interface TokenPayload {
   userId: string;
   orgId: string;
   roles: string[];
+  /** Mot de passe provisoire : le middleware n'autorise que la page de changement de mot de passe. */
+  mustChangePassword?: boolean;
   [key: string]: any;
 }
 

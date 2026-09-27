@@ -7,8 +7,8 @@ import { resolvePeriod, type PeriodType } from '@/lib/api/periodRange';
 
 const PERIOD_TYPES: PeriodType[] = ['this_month', 'last_month', 'quarter', 'year', 'custom'];
 
-export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
-  const centerIds = parseCenterIds(searchParams);
+export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
+  const centerIds = scope.effective(parseCenterIds(searchParams));
   const formationIds = searchParams.getAll('formationId').filter(Boolean);
 
   const periodParam = searchParams.get('period');
@@ -17,6 +17,6 @@ export const GET = withApiRoute(async (_req, { tx, orgId, searchParams }) => {
   const customTo = searchParams.get('to');
   const period = resolvePeriod(periodType, customFrom ? new Date(customFrom) : undefined, customTo ? new Date(customTo) : undefined);
 
-  const stats = await getDashboardStats(tx, orgId, centerIds, formationIds, period);
+  const stats = await getDashboardStats(tx, orgId, centerIds, formationIds, period, scope.formation());
   return NextResponse.json(stats);
 }, { permission: { resource: 'dashboard', action: 'read' } });

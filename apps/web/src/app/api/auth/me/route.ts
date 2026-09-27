@@ -32,6 +32,8 @@ export const GET = withApiRoute(async (_req, { tx, orgId, userId }) => {
       email: organization.email,
       phone: organization.phone,
       address: organization.address,
+      onboardingStatus: organization.onboardingStatus,
+      onboardingStep: organization.onboardingStep,
     },
   });
 });
