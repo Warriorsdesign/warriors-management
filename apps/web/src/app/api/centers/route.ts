@@ -31,7 +31,7 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
   if (centersCount >= sub.maxCenters) {
     throw new ApiError(
       403,
-      `Quota atteint. Votre plan actuel (${sub.plan}) est limité à ${sub.maxCenters} centre(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
+      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxCenters} centre(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
       'QUOTA_EXCEEDED'
     );
   }

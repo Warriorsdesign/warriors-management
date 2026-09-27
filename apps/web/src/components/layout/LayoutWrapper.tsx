@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Toast } from "@/components/ui/toast";
+import { GlobalErrorModal } from "@/components/ui/GlobalErrorModal";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -11,7 +12,12 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const isAdminPath = pathname.startsWith("/admin");
 
   if (isLoginPage || isAdminPath) {
-    return <main className="flex-1 min-h-screen">{children}</main>;
+    return (
+      <main className="flex-1 min-h-screen">
+        {children}
+        <GlobalErrorModal />
+      </main>
+    );
   }
 
   return (
@@ -24,6 +30,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <Toast />
+      <GlobalErrorModal />
     </div>
   );
 }

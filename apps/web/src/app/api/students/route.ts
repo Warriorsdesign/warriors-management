@@ -88,7 +88,7 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   if (studentsCount >= sub.maxStudents) {
     throw new ApiError(
       403,
-      `Quota atteint. Votre plan actuel (${sub.plan}) est limité à ${sub.maxStudents} étudiant(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
+      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxStudents} étudiant(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
       'QUOTA_EXCEEDED'
     );
   }
