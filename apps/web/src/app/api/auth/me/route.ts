@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 
-export const GET = withApiRoute(async (_req, { tx, orgId, userId }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, userId, perms }) => {
   const user = await findOrgScopedOrThrow(() =>
     tx.user.findFirst({
       where: { id: userId, organizationId: orgId },
@@ -25,6 +25,8 @@ export const GET = withApiRoute(async (_req, { tx, orgId, userId }) => {
       avatarUrl: user.avatarUrl,
       centers: user.centers,
     },
+    // Permissions effectives : pilotent le menu et l'affichage (le serveur reste la barrière).
+    permissions: perms.grants,
     organization: {
       id: organization.id,
       name: organization.name,

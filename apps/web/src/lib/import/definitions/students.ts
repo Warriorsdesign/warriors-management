@@ -138,7 +138,8 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
     };
   },
 
-  async validate(rows, { tx, orgId, scope }) {
+  async validate(rows, { tx, orgId, scope, perms }) {
+    const canCollect = perms.can('students.collect', 'write') || perms.can('payments', 'write');
     const issues: ImportRowIssue[] = [];
     const valid: PreparedRow<StudentImportRow>[] = [];
 
@@ -228,6 +229,11 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
           if (!level) r.error(`Niveau "${levelName}" inconnu. Niveaux possibles : ${levels.map((l) => l.name).join(', ')}.`, 'level');
           else currentLevel = level.id;
         }
+      }
+
+      // Reprise d'un historique de paiements = encaissement : réservé aux rôles qui peuvent encaisser.
+      if (alreadyPaid > 0 && !canCollect) {
+        r.error("Votre rôle ne permet pas d'enregistrer des sommes déjà versées : laissez la colonne vide.", 'alreadyPaid');
       }
 
       if (classGroup && registrationFee + alreadyPaid > classGroup.formation.totalCost) {

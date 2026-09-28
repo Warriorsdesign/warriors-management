@@ -1,40 +1,34 @@
 import { PrismaClient } from '@prisma/client';
-import { ROLES, PERMISSIONS } from '../src/lib/auth/roles';
+import { ROLES } from '../src/lib/auth/roles';
+import { SYSTEM_ROLE_KEYS, grantsToRows } from '../src/lib/auth/permissionCatalog';
+import { systemTemplateGrants } from '../src/lib/auth/permissions';
 
+/**
+ * Crée / aligne les modèles globaux des rôles système. ADMIN n'a pas de permissions en base
+ * (tous les droits par construction). La copie par organisation et la reprise des données
+ * existantes sont faites par prisma/migrations-sql/2026-09-role-permissions.sql.
+ */
 const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DIRECT_URL } }
 });
 
 async function main() {
-  console.log('Migrating roles to DB...');
+  console.log('Migrating system role templates to DB...');
 
-  for (const roleName of Object.values(ROLES)) {
-    console.log(`Processing role: ${roleName}`);
-    const role = await prisma.role.upsert({
-      where: { name: roleName },
-      update: { isSystem: true },
-      create: { name: roleName, isSystem: true, description: `Role systeme ${roleName}` }
+  const admin = await prisma.role.findFirst({ where: { name: ROLES.ADMIN, organizationId: null } });
+  if (!admin) {
+    await prisma.role.create({ data: { name: ROLES.ADMIN, isSystem: true, description: 'Role systeme ADMIN' } });
+  }
+
+  for (const key of SYSTEM_ROLE_KEYS) {
+    console.log(`Processing role: ${key}`);
+    const existing = await prisma.role.findFirst({ where: { name: key, organizationId: null } });
+    const role = existing ?? await prisma.role.create({ data: { name: key, isSystem: true, systemKey: key } });
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+    await prisma.rolePermission.createMany({
+      data: grantsToRows(systemTemplateGrants(key)).map((row) => ({ ...row, roleId: role.id })),
     });
-
-    for (const [resource, perms] of Object.entries(PERMISSIONS)) {
-      const canRead = (perms as any).read?.includes(roleName) ?? false;
-      const canWrite = (perms as any).write?.includes(roleName) ?? false;
-
-      if (canRead || canWrite) {
-        await prisma.rolePermission.upsert({
-          where: {
-            roleId_resource: { roleId: role.id, resource }
-          },
-          update: { canRead, canWrite },
-          create: {
-            roleId: role.id,
-            resource,
-            canRead,
-            canWrite
-          }
-        });
-      }
-    }
+    await prisma.role.update({ where: { id: role.id }, data: { isSystem: true, systemKey: key } });
   }
   console.log('Done migrating roles.');
 }

@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { useSession } from "@/lib/hooks/useSession";
-import { PERMISSIONS } from "@/lib/auth/roles";
+import type { PermissionResource } from "@/lib/auth/permissionCatalog";
 import { apiFetch } from "@/lib/api/client";
 import { mutate as globalMutate } from "swr";
 
@@ -33,7 +33,7 @@ const gestionItems = [
 const financesItems = [
   { name: "Paiements", href: "/payments", icon: CreditCard, resource: "payments" as const },
   { name: "Dépenses", href: "/expenses", icon: Receipt, resource: "expenses" as const },
-  { name: "Rapports", href: "/reports", icon: BarChart3, resource: "dashboard" as const },
+  { name: "Rapports", href: "/reports", icon: BarChart3, resource: "reports" as const },
 ];
 
 const adminItems = [
@@ -45,13 +45,16 @@ const adminItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { isMobileMenuOpen, closeMobileMenu, isSidebarCollapsed, toggleSidebar } = useUIStore();
-  const { organization, roles } = useSession();
+  const { organization, permissions } = useSession();
 
-  const canRead = (resource: keyof typeof PERMISSIONS | null) => {
+  // Menu construit à partir des permissions effectives du rôle (voir /api/auth/me).
+  const canRead = (resource: PermissionResource | null) => {
     if (!resource) return true;
-    const allowed = PERMISSIONS[resource].read;
-    return roles.some((r) => (allowed as readonly string[]).includes(r));
+    return permissions?.[resource]?.read ?? false;
   };
+  const visibleGestion = gestionItems.filter((item) => canRead(item.resource));
+  const visibleFinances = financesItems.filter((item) => canRead(item.resource));
+  const visibleAdmin = adminItems.filter((item) => canRead(item.resource));
 
   const handleLogout = async () => {
     try {
@@ -149,6 +152,7 @@ export function Sidebar() {
             </div>
 
             {/* Gestion */}
+            {visibleGestion.length > 0 && (
             <div className="mb-6">
               {!isSidebarCollapsed && (
                 <p className="px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -156,7 +160,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {gestionItems.filter((item) => canRead(item.resource)).map((item) => {
+                {visibleGestion.map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -180,7 +184,10 @@ export function Sidebar() {
               </div>
             </div>
 
-            {/* Finances */}
+            )}
+
+            {/* Finances : section masquée si le rôle n'a accès à aucun de ses modules */}
+            {visibleFinances.length > 0 && (
             <div className="mb-6">
               {!isSidebarCollapsed && (
                 <p className="px-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -188,7 +195,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {financesItems.filter((item) => canRead(item.resource)).map((item) => {
+                {visibleFinances.map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link
@@ -211,6 +218,8 @@ export function Sidebar() {
                 })}
               </div>
             </div>
+
+            )}
 
             {/* Administration */}
             <div className="mb-6">
@@ -220,7 +229,7 @@ export function Sidebar() {
                 </p>
               )}
               <div className={cn("space-y-1", isSidebarCollapsed && "flex flex-col items-center")}>
-                {adminItems.filter((item) => canRead(item.resource)).map((item) => {
+                {visibleAdmin.map((item) => {
                   const isActive = pathname.startsWith(item.href);
                   return (
                     <Link

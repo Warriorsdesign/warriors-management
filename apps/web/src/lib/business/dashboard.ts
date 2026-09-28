@@ -20,7 +20,13 @@ export async function getDashboardStats(
   formationIds: string[],
   period: ResolvedPeriod,
   /** Formations visibles dans le périmètre de centres de l'utilisateur (voir CenterScope.formation). */
-  formationScope: Prisma.FormationWhereInput = {}
+  formationScope: Prisma.FormationWhereInput = {},
+  /**
+   * Indicateurs financiers autorisés (permission "dashboard.finance"). Sinon, paiements,
+   * dépenses et échéanciers ne sont pas lus : tous les montants valent 0, les listes sont vides
+   * et financeVisible = false (l'interface masque ces blocs).
+   */
+  includeFinance = true
 ) {
   const now = new Date();
 
@@ -35,13 +41,19 @@ export async function getDashboardStats(
   const viaStudentCenterWhere = hasClassGroupFilter ? { student: { classGroup: classGroupFilter } } : {};
 
   const [payments, expenses, students, schedules, formations] = await Promise.all([
-    tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere }, orderBy: { date: 'desc' } }),
-    tx.expense.findMany({ where: { organizationId: orgId, ...(centerIds.length ? { centerId: { in: centerIds } } : {}) } }),
+    includeFinance
+      ? tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere }, orderBy: { date: 'desc' } })
+      : Promise.resolve([]),
+    includeFinance
+      ? tx.expense.findMany({ where: { organizationId: orgId, ...(centerIds.length ? { centerId: { in: centerIds } } : {}) } })
+      : Promise.resolve([]),
     tx.student.findMany({
       where: { organizationId: orgId, ...studentCenterWhere },
       include: { classGroup: { select: { formationId: true, formation: { select: { name: true } } } } },
     }),
-    tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
+    includeFinance
+      ? tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } })
+      : Promise.resolve([]),
     tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
   ]);
 
@@ -208,6 +220,7 @@ export async function getDashboardStats(
     .slice(0, 8);
 
   return {
+    financeVisible: includeFinance,
     period: { from: period.from.toISOString(), to: period.to.toISOString(), label: period.label, prevLabel: period.prevLabel },
     activeStudents,
     totalStudents,

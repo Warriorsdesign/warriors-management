@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { updatePaymentSchema } from '@/lib/validation/payments';
 import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 

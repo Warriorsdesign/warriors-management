@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateLevelSchema } from '@/lib/validation/formations';
 import { assertFormationEditable, type Level } from '@/lib/business/formations';
 

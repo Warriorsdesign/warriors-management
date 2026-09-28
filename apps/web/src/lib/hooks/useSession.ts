@@ -1,12 +1,12 @@
 import useSWR from 'swr';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { apiFetch, revalidateResource } from '@/lib/api/client';
-import type { SessionUser, SessionOrganization, UpdateOwnProfileInput, ChangePasswordInput } from '@/lib/api/types';
-import type { Role } from '@/lib/types/enums';
+import type { SessionUser, SessionOrganization, SessionPermissions, UpdateOwnProfileInput, ChangePasswordInput } from '@/lib/api/types';
+import { studentFinanceLevel, type PermissionAction, type PermissionResource, type StudentFinanceLevel } from '@/lib/auth/permissionCatalog';
 
 interface SessionResponse {
   user: SessionUser;
   organization: SessionOrganization;
+  permissions: SessionPermissions;
 }
 
 export function useSession() {
@@ -16,19 +16,27 @@ export function useSession() {
     user: data?.user,
     organization: data?.organization,
     roles: data?.user?.roles ?? [],
+    permissions: data?.permissions,
     isLoading,
     error,
     mutate,
   };
 }
 
-/** Vérifie si le rôle courant a accès (read/write) à une ressource, selon la matrice serveur. */
-export function useCan(resource: keyof typeof PERMISSIONS, action: 'read' | 'write'): boolean {
-  const { roles } = useSession();
-  const permission = PERMISSIONS[resource] as Record<string, readonly Role[] | undefined>;
-  const allowed = permission[action];
-  if (!allowed) return false;
-  return roles.some((r) => allowed.includes(r));
+/**
+ * Vérifie si l'utilisateur a accès (read/write) à une ressource, d'après les permissions
+ * effectives renvoyées par /api/auth/me (rôles de l'organisation). Faux tant que la session
+ * charge : l'interface n'affiche rien de sensible par défaut. Le serveur reste la barrière.
+ */
+export function useCan(resource: PermissionResource, action: PermissionAction): boolean {
+  const { permissions } = useSession();
+  return permissions?.[resource]?.[action] ?? false;
+}
+
+/** Visibilité des finances d'un étudiant : aucune, statut seulement, détail complet. */
+export function useStudentFinanceLevel(): StudentFinanceLevel {
+  const { permissions } = useSession();
+  return permissions ? studentFinanceLevel(permissions) : 'none';
 }
 
 export async function updateOwnProfile(input: UpdateOwnProfileInput) {

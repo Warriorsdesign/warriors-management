@@ -1,23 +1,25 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateStudentSchema } from '@/lib/validation/students';
+import { redactStudentFinance } from '@/lib/business/studentFinance';
 
 type Params = { id: string };
 
-export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, params }) => {
-  const { schedules, ...student } = await findOrgScopedOrThrow(() =>
+export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, perms, params }) => {
+  const level = perms.studentFinance;
+  const { schedules, payments, ...student } = await findOrgScopedOrThrow(() =>
     tx.student.findFirst({
       where: { id: params.id, organizationId: orgId, ...scope.student() },
       include: {
         classGroup: { include: { formation: true, center: true } },
         schedules: { take: 1 },
-        payments: { orderBy: { date: 'desc' } },
+        // Paiements lus uniquement si le rôle peut voir le détail financier.
+        payments: level === 'full' ? { orderBy: { date: 'desc' } } : { take: 0 },
       },
     })
   );
-  return NextResponse.json({ ...student, schedule: schedules[0] ?? null });
+  return NextResponse.json({ ...student, ...redactStudentFinance(schedules[0] ?? null, payments, level) });
 }, { permission: { resource: 'students', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {

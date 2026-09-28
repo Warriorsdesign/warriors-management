@@ -15,7 +15,9 @@ export async function setAuthCookie(response: NextResponse, payload: TokenPayloa
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24, // 24 heures, comme l'expiration du JWT
+    // Cookie de session (sans maxAge) : effacé à la fermeture du navigateur. Le JWT expire
+    // de toute façon au bout de 24 heures ; la fermeture d'un onglet est gérée côté client
+    // (lib/auth/tabSession.ts).
   });
 }
 

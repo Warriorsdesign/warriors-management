@@ -300,7 +300,10 @@ model Role {
   name           String
   description    String?
   isSystem       Boolean       @default(false)
-  
+  /// Rôle système copié dans l'organisation (GESTIONNAIRE, COMPTABLE) : nom figé, permissions
+  /// modifiables, "Rétablir les réglages d'origine" possible. Null pour les rôles créés par l'organisation.
+  systemKey      String?
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 

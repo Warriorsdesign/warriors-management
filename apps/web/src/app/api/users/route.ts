@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow, assertOrgCenters, assertOrgRoles } from '@/lib/db/scoped';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { createUserSchema } from '@/lib/validation/users';
+import { assertCanAssignRoles } from '@/lib/auth/permissions';
 import { generateUserMatricule, generateRandomPassword } from '@/lib/business/matricule';
 
 export const GET = withApiRoute(async (req, { tx, orgId, userId, scope, searchParams }) => {
@@ -34,9 +34,10 @@ export const GET = withApiRoute(async (req, { tx, orgId, userId, scope, searchPa
   return NextResponse.json({ data: users });
 }, { permission: { resource: 'users', action: 'read' } });
 
-export const POST = withApiRoute(async (req, { tx, orgId, scope }) => {
+export const POST = withApiRoute(async (req, { tx, orgId, scope, perms }) => {
   const body = createUserSchema.parse(await req.json());
   await assertOrgRoles(tx, orgId, body.roles);
+  await assertCanAssignRoles(tx, orgId, perms, body.roles);
   await assertOrgCenters(tx, orgId, body.centerIds);
   scope.assertAssignableCenters(body.centerIds);
 

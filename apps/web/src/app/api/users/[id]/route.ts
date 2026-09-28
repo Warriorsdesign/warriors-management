@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow, assertOrgCenters, assertOrgRoles } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { updateUserSchema } from '@/lib/validation/users';
+import { assertCanAssignRoles } from '@/lib/auth/permissions';
 
 type Params = { id: string };
 
@@ -33,12 +33,16 @@ function assertNotSelf(targetId: string, userId: string, action: string): void {
   }
 }
 
-export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, params }) => {
+export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, perms, params }) => {
   assertNotSelf(params.id, userId, 'modifier');
   const body = updateUserSchema.parse(await req.json());
   const user = await findOrgScopedOrThrow(() =>
     tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
   );
+
+  // Un non-administrateur ne gère que des comptes dont les droits n'excèdent pas les siens.
+  await assertCanAssignRoles(tx, orgId, perms, user.roles);
+  if (body.roles !== undefined) await assertCanAssignRoles(tx, orgId, perms, body.roles);
 
   if (body.matricule !== undefined && body.matricule !== user.matricule) {
     throw new ApiError(400, 'Le matricule ne peut pas être modifié.', 'MATRICULE_IMMUTABLE');
@@ -83,11 +87,12 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
   return NextResponse.json(updated);
 }, { permission: { resource: 'users', action: 'write' } });
 
-export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, params }) => {
+export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, perms, params }) => {
   assertNotSelf(params.id, userId, 'supprimer');
   const user = await findOrgScopedOrThrow(() =>
     tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
   );
+  await assertCanAssignRoles(tx, orgId, perms, user.roles);
 
   // Empêcher la suppression du dernier ADMIN
   if (user.roles.includes('ADMIN') && user.status === 'actif') {

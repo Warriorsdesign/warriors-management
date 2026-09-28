@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { createClassSchema } from '@/lib/validation/classes';
 import { computeClassStatus, getActiveStudentsForClass } from '@/lib/business/classStatus';
 import { parseCenterIds } from '@/lib/api/centerFilter';

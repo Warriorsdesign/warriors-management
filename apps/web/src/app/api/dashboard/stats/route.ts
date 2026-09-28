@@ -4,7 +4,7 @@ import { getDashboardStats } from '@/lib/business/dashboard';
 import { parseCenterIds } from '@/lib/api/centerFilter';
 import { PERIOD_TYPES, parseOffsetMinutes, resolvePeriod, type PeriodType } from '@/lib/api/periodRange';
 
-export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, scope, perms, searchParams }) => {
   const centerIds = scope.effective(parseCenterIds(searchParams));
   const formationIds = searchParams.getAll('formationId').filter(Boolean);
 
@@ -19,6 +19,8 @@ export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams })
     parseOffsetMinutes(searchParams.get('tz'))
   );
 
-  const stats = await getDashboardStats(tx, orgId, centerIds, formationIds, period, scope.formation());
+  const stats = await getDashboardStats(
+    tx, orgId, centerIds, formationIds, period, scope.formation(), perms.can('dashboard.finance', 'read')
+  );
   return NextResponse.json(stats);
 }, { permission: { resource: 'dashboard', action: 'read' } });

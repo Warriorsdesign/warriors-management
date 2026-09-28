@@ -1,6 +1,5 @@
 import useSWR from 'swr';
 import { apiFetch, apiFetcher } from '@/lib/api/client';
-import { useState, useCallback } from 'react';
 
 export interface RolePermission {
   id?: string;
@@ -14,7 +13,12 @@ export interface Role {
   name: string;
   description: string | null;
   isSystem: boolean;
+  /** Rôle système adapté par l'organisation (GESTIONNAIRE, COMPTABLE) : nom figé, réinitialisable. */
+  systemKey: string | null;
+  /** ADMIN : tous les droits, non modifiable. */
+  locked: boolean;
   permissions: RolePermission[];
+  userCount: number;
   createdAt: string;
 }
 
@@ -41,6 +45,11 @@ export async function updateRole(id: string, data: Partial<{ name: string; descr
     method: 'PUT',
     body: JSON.stringify(data)
   });
+}
+
+/** Rétablit les réglages d'origine d'un rôle système. */
+export async function resetRole(id: string): Promise<Role> {
+  return await apiFetch(`/api/roles/${id}/reset`, { method: 'POST' });
 }
 
 export async function deleteRole(id: string): Promise<void> {

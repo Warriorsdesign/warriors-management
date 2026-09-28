@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { createPaymentSchema } from '@/lib/validation/payments';
 import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 import { parseCenterIds } from '@/lib/api/centerFilter';

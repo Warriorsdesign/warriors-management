@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, Mail, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
+import { markTabSession } from "@/lib/auth/tabSession";
 
 function AdminLoginForm() {
   const router = useRouter();
@@ -27,6 +28,7 @@ function AdminLoginForm() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      markTabSession("admin");
       const redirect = searchParams.get("redirect") ?? "/admin/dashboard";
       router.push(redirect);
       router.refresh();

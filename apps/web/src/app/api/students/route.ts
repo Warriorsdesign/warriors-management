@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { createStudentSchema } from '@/lib/validation/students';
 import { generateStudentMatricule } from '@/lib/business/matricule';
 import { buildInitialSchedule, rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 import { ApiError } from '@/lib/api/errors';
 import { parseCenterIds } from '@/lib/api/centerFilter';
+import { redactScheduleSummary } from '@/lib/business/studentFinance';
 
-export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
+export const GET = withApiRoute(async (_req, { tx, orgId, scope, perms, searchParams }) => {
   const search = searchParams.get('search')?.trim();
   const formationIds = searchParams.getAll('formationId');
   const statuses = searchParams.getAll('status');
@@ -48,12 +48,13 @@ export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams })
     }),
   ]);
 
-  const data = students.map(({ schedules, ...s }) => ({ ...s, schedule: schedules[0] ?? null }));
+  const level = perms.studentFinance;
+  const data = students.map(({ schedules, ...s }) => ({ ...s, schedule: redactScheduleSummary(schedules[0], level) }));
 
   return NextResponse.json({ data, meta: { total, page, pageSize } });
 }, { permission: { resource: 'students', action: 'read' } });
 
-export const POST = withApiRoute(async (req, { tx, orgId, userId, scope }) => {
+export const POST = withApiRoute(async (req, { tx, orgId, userId, scope, perms }) => {
   const body = createStudentSchema.parse(await req.json());
 
   const classGroup = await tx.classGroup.findFirst({
@@ -153,5 +154,11 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId, scope }) => {
     ? await rebuildScheduleForStudent(tx, student.id, orgId)
     : schedule;
 
-  return NextResponse.json({ student, schedule: finalSchedule, payment }, { status: 201 });
+  // L'inscription (frais et échéancier) est ouverte à qui peut écrire les étudiants ; les montants
+  // ne sont renvoyés qu'aux rôles qui voient le détail financier.
+  const full = perms.studentFinance === 'full';
+  return NextResponse.json(
+    { student, schedule: full ? finalSchedule : null, payment: full ? payment : null },
+    { status: 201 }
+  );
 }, { permission: { resource: 'students', action: 'write' } });

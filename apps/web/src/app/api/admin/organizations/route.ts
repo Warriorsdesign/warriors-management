@@ -3,6 +3,7 @@ import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 import { generateUserMatricule } from '@/lib/business/matricule';
 import bcrypt from 'bcryptjs';
+import { ensureOrgSystemRoles } from '@/lib/auth/permissions';
 
 export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
   const search = searchParams.get('search')?.trim() || '';
@@ -78,6 +79,9 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
         status: 'actif',
       },
     });
+
+    // Copie modifiable des rôles système (GESTIONNAIRE, COMPTABLE) propre à l'organisation.
+    await ensureOrgSystemRoles(tx, org.id);
 
     // 2. Création de l'abonnement initial (Essai 30 jours par défaut)
     const endDate = new Date();

@@ -1,8 +1,9 @@
 import type {
-  Role, UserStatus, Gender, StudentStatus, InstallmentStatus,
+  UserStatus, Gender, StudentStatus, InstallmentStatus,
   IntervalType, PaymentMethod, ExpenseCategory, ClassStatus,
 } from '@/lib/types/enums';
 import type { OnboardingStatus, OnboardingStepKey } from '@/lib/onboarding/steps';
+import type { PermissionGrants, StudentFinanceLevel } from '@/lib/auth/permissionCatalog';
 
 export interface Paginated<T> {
   data: T[];
@@ -16,11 +17,12 @@ export interface SessionUser {
   firstName: string;
   lastName: string;
   email: string;
-  roles: Role[];
+  roles: string[]; // noms de rôles (système ou créés par l'organisation)
   status: UserStatus;
   avatarUrl: string | null;
   centers: { id: string; name: string }[];
 }
+export type SessionPermissions = PermissionGrants;
 export interface SessionOrganization {
   id: string;
   name: string;
@@ -172,9 +174,10 @@ export interface Installment {
   amount: number; // montant restant dû (0 = soldée)
   status: InstallmentStatus;
 }
+/** remainingAmount absent pour un rôle qui ne voit que le statut de paiement. */
 export interface PaymentScheduleSummary {
   status: InstallmentStatus;
-  remainingAmount: number;
+  remainingAmount?: number;
 }
 export interface PaymentScheduleDTO {
   id: string;
@@ -221,8 +224,12 @@ export interface StudentListItemDTO {
 }
 export interface StudentDetailDTO extends Omit<StudentListItemDTO, 'schedule'> {
   classGroup: ClassDTO & { formation: FormationDTO; center: CenterDTO };
+  /** Échéancier et paiements : uniquement pour le niveau "full" (null / vide sinon). */
   schedule: PaymentScheduleDTO | null;
   payments: PaymentDTO[];
+  /** Statut de paiement : visible dès le niveau "status". */
+  paymentStatus: InstallmentStatus | null;
+  financeLevel: StudentFinanceLevel;
 }
 export interface CreateStudentInput {
   firstName: string;
@@ -249,7 +256,8 @@ export interface UpdateStudentInput {
 }
 export interface CreateStudentResult {
   student: StudentListItemDTO;
-  schedule: PaymentScheduleDTO;
+  /** null si le rôle ne voit pas le détail financier. */
+  schedule: PaymentScheduleDTO | null;
   payment: PaymentDTO | null;
 }
 
@@ -323,7 +331,7 @@ export interface UserDTO {
   firstName: string;
   lastName: string;
   email: string;
-  roles: Role[];
+  roles: string[]; // noms de rôles (système ou créés par l'organisation)
   status: UserStatus;
   avatarUrl: string | null;
   centers: { id: string; name: string }[];
@@ -332,7 +340,7 @@ export interface CreateUserInput {
   firstName: string;
   lastName: string;
   email: string;
-  roles: Role[];
+  roles: string[]; // noms de rôles (système ou créés par l'organisation)
   status?: UserStatus;
   centerIds: string[];
 }
@@ -340,7 +348,7 @@ export interface UpdateUserInput {
   firstName?: string;
   lastName?: string;
   email?: string;
-  roles?: Role[];
+  roles?: string[]; // noms de rôles (système ou créés par l'organisation)
   status?: UserStatus;
   centerIds?: string[];
 }
@@ -361,6 +369,8 @@ export interface ChangePasswordInput {
 
 // --- Dashboard ---
 export interface DashboardStatsDTO {
+  /** false : rôle sans accès aux indicateurs financiers (montants à 0, listes vides, blocs masqués). */
+  financeVisible: boolean;
   period: { from: string; to: string; label: string; prevLabel: string };
   activeStudents: number;
   totalStudents: number;

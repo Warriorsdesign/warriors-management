@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto';
 import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { changeStatusSchema } from '@/lib/validation/students';
 
 type Params = { id: string };

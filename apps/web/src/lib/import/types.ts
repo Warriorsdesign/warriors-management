@@ -1,5 +1,6 @@
 import type { TenantClient } from '@/lib/db';
 import type { CenterScope } from '@/lib/auth/centerScope';
+import type { PermissionSet } from '@/lib/auth/permissions';
 import type { ImportRowIssue, ImportType } from '@/lib/api/types';
 
 /** Valeur de cellule normalisée après lecture du classeur. */
@@ -32,6 +33,8 @@ export interface ImportContext {
   userId: string;
   /** Périmètre de centres de l'utilisateur : références (centres, classes, formations) résolues uniquement dedans. */
   scope: CenterScope;
+  /** Permissions effectives : certaines colonnes (sommes déjà versées) exigent un droit d'encaissement. */
+  perms: PermissionSet;
 }
 
 export interface PreparedRow<T> {

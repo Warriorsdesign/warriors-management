@@ -12,7 +12,7 @@ import {
 } from "@/lib/hooks/useStudents";
 import { useClasses } from "@/lib/hooks/useClasses";
 import { useFormations } from "@/lib/hooks/useFormations";
-import { useSession, useCan } from "@/lib/hooks/useSession";
+import { useSession, useCan, useStudentFinanceLevel } from "@/lib/hooks/useSession";
 import { ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
 import type { PaymentDTO } from "@/lib/api/types";
@@ -36,7 +36,12 @@ export default function StudentDetailsPage() {
   const { classes: allClasses } = useClasses();
   const { formations: allFormations } = useFormations();
   const canWriteStudent = useCan("students", "write");
-  const canWritePayment = useCan("payments", "write");
+  // Finances de la fiche selon le rôle : aucune, statut seulement, ou détail complet.
+  const financeLevel = useStudentFinanceLevel();
+  const showFinanceDetail = financeLevel === "full";
+  const canCollectOnSheet = useCan("students.collect", "write");
+  const canWritePayments = useCan("payments", "write");
+  const canWritePayment = showFinanceDetail && (canCollectOnSheet || canWritePayments);
 
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -261,7 +266,11 @@ export default function StudentDetailsPage() {
             Retour à la liste
           </Link>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Fiche étudiant</h1>
-          <p className="text-sm text-muted-foreground mt-1">Consulter et gérer l'ensemble des informations d'un étudiant : parcours, solde, échéancier, paiements.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {showFinanceDetail
+              ? "Consulter et gérer l’ensemble des informations d’un étudiant : parcours, solde, échéancier, paiements."
+              : "Consulter et gérer les informations d’un étudiant : identité, classe et parcours."}
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -402,8 +411,11 @@ export default function StudentDetailsPage() {
 
         {/* Right Column */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Financial Summary */}
+          {/* Financial Summary (montants : détail complet ; statut : dès le niveau "statut") */}
+          {(financeLevel !== "none" || canWriteStudent) && (
           <div className="bg-card border border-border rounded-xl shadow-sm p-6">
+            {showFinanceDetail ? (
+            <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Frais applicables • FCFA</p>
@@ -419,7 +431,7 @@ export default function StudentDetailsPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Statut paiement</p>
-                <p className="text-xl font-bold text-foreground capitalize">{schedule ? formatStatus(schedule.status) : '-'}</p>
+                <p className="text-xl font-bold text-foreground capitalize">{student.paymentStatus ? formatStatus(student.paymentStatus) : '-'}</p>
               </div>
             </div>
 
@@ -434,6 +446,13 @@ export default function StudentDetailsPage() {
                 {progressPercentage} % des frais réglés - {schedule ? formatCurrency(schedule.remainingAmount) : '0'} restants
               </p>
             </div>
+            </>
+            ) : financeLevel === "status" ? (
+              <div className="mb-6">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Statut paiement</p>
+                <p className="text-xl font-bold text-foreground capitalize">{student.paymentStatus ? formatStatus(student.paymentStatus) : '-'}</p>
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap gap-3">
               {canWritePayment && (
@@ -456,6 +475,7 @@ export default function StudentDetailsPage() {
                   Enregistrer un paiement
                 </button>
               )}
+              {showFinanceDetail && (
               <button
                 onClick={() => {
                   if (payments.length === 0) {
@@ -469,6 +489,7 @@ export default function StudentDetailsPage() {
               >
                 Reçu total (Tous les paiements)
               </button>
+              )}
               {canWriteStudent && (
                 <>
                   <button
@@ -493,6 +514,10 @@ export default function StudentDetailsPage() {
             </div>
           </div>
 
+          )}
+
+          {showFinanceDetail && (
+          <>
           {/* Echéancier */}
           <div className="bg-card border border-border rounded-xl shadow-sm p-6 overflow-hidden">
             <div className="mb-6">
@@ -599,6 +624,8 @@ export default function StudentDetailsPage() {
               </table>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
 

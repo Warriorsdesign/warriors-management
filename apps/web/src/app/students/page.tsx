@@ -10,7 +10,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useStudents, createStudent, updateStudent, deleteStudent } from "@/lib/hooks/useStudents";
 import { useClasses } from "@/lib/hooks/useClasses";
 import { useFormations } from "@/lib/hooks/useFormations";
-import { useCan } from "@/lib/hooks/useSession";
+import { useCan, useStudentFinanceLevel } from "@/lib/hooks/useSession";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
@@ -41,6 +41,11 @@ export default function StudentsPage() {
   const { classes } = useClasses();
   const { formations } = useFormations();
   const canWrite = useCan("students", "write");
+  // Colonnes financières selon le rôle : statut seul, ou statut + reste à payer.
+  const financeLevel = useStudentFinanceLevel();
+  const showPaymentStatus = financeLevel !== "none";
+  const showRemaining = financeLevel === "full";
+  const columnCount = 5 + (showPaymentStatus ? 1 : 0) + (showRemaining ? 1 : 0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -319,8 +324,8 @@ export default function StudentsPage() {
                 <th className="px-4 py-3 whitespace-nowrap">Formation</th>
                 <th className="px-4 py-3 whitespace-nowrap">Classe</th>
                 <th className="px-4 py-3 whitespace-nowrap">Statut</th>
-                <th className="px-4 py-3 whitespace-nowrap">Paiement</th>
-                <th className="px-4 py-3 text-right whitespace-nowrap">Reste à payer</th>
+                {showPaymentStatus && <th className="px-4 py-3 whitespace-nowrap">Paiement</th>}
+                {showRemaining && <th className="px-4 py-3 text-right whitespace-nowrap">Reste à payer</th>}
                 <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
@@ -329,7 +334,7 @@ export default function StudentsPage() {
                 <TableSkeleton rows={6} columns={7} />
               ) : currentStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={columnCount} className="px-4 py-8 text-center text-muted-foreground">
                     Aucun étudiant trouvé.
                   </td>
                 </tr>
@@ -356,18 +361,22 @@ export default function StudentsPage() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         {getStudentStatusBadge(student.currentStatus)}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {student.schedule && getPaymentStatusBadge(student.schedule.status)}
-                      </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {student.schedule ? (
-                          <span className="font-semibold text-foreground">
-                            {formatCurrency(student.schedule.remainingAmount)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
+                      {showPaymentStatus && (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {student.schedule && getPaymentStatusBadge(student.schedule.status)}
+                        </td>
+                      )}
+                      {showRemaining && (
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          {student.schedule?.remainingAmount !== undefined ? (
+                            <span className="font-semibold text-foreground">
+                              {formatCurrency(student.schedule.remainingAmount)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right">
                         <div className="relative inline-flex items-center action-dropdown-container">
                           <button

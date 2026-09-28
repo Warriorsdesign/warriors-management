@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withTenantContext, type TenantClient } from '@/lib/db';
 import { getRequestContext, type RequestContext } from '@/lib/auth/context';
 import { requireRole } from '@/lib/auth/guards';
-import { hasPermission } from '@/lib/auth/permissions';
-import { loadCenterScope, type CenterScope } from '@/lib/auth/centerScope';
+import { loadPermissions, type PermissionSet } from '@/lib/auth/permissions';
+import type { PermissionAction, PermissionResource } from '@/lib/auth/permissionCatalog';
+import { loadUserAccess, type CenterScope } from '@/lib/auth/centerScope';
 import type { Role } from '@/lib/auth/roles';
 import { ApiError, toErrorResponse } from './errors';
 
@@ -11,6 +12,8 @@ interface RouteCtx<P> extends RequestContext {
   tx: TenantClient;
   /** Centres accessibles à l'utilisateur (voir lib/auth/centerScope.ts) : à appliquer à toute donnée rattachée à un centre. */
   scope: CenterScope;
+  /** Permissions effectives (rôles de l'organisation, ADMIN = tout) : à consulter pour les données sensibles. */
+  perms: PermissionSet;
   params: P;
   searchParams: URLSearchParams;
 }
@@ -25,7 +28,7 @@ export function withApiRoute<P = Record<string, string>>(
   handler: (req: NextRequest, ctx: RouteCtx<P>) => Promise<NextResponse>,
   opts?: { 
     allowedRoles?: readonly Role[];
-    permission?: { resource: string; action: 'read' | 'write' };
+    permission?: { resource: PermissionResource; action: PermissionAction };
     /** Timeout (ms) de la transaction RLS, pour les traitements de masse. Défaut : 15 s. */
     transactionTimeout?: number;
   }
@@ -33,7 +36,6 @@ export function withApiRoute<P = Record<string, string>>(
   return async (req: NextRequest, routeArgs: { params: P }) => {
     try {
       const requestCtx = getRequestContext(req);
-      if (opts?.allowedRoles) requireRole(requestCtx.roles, opts.allowedRoles);
 
       return await withTenantContext(requestCtx.orgId, async (tx) => {
         // Vérification de la suspension de l'organisation (Phase 12, 13)
@@ -46,30 +48,23 @@ export function withApiRoute<P = Record<string, string>>(
           throw new ApiError(403, 'Votre organisation est suspendue. Accès refusé.', 'ORG_SUSPENDED');
         }
 
+        // Rôles relus en base à chaque requête (ceux du JWT peuvent dater de la connexion).
+        const { roles, scope } = await loadUserAccess(tx, requestCtx.orgId, requestCtx.userId);
+        if (opts?.allowedRoles) requireRole(roles, opts.allowedRoles);
+        const perms = await loadPermissions(tx, requestCtx.orgId, roles);
         if (opts?.permission) {
-          if (!requestCtx.roles || requestCtx.roles.length === 0) {
+          if (roles.length === 0) {
             throw new ApiError(403, 'Accès refusé. Aucun rôle assigné.', 'FORBIDDEN');
           }
-          
-          const hasPerm = await hasPermission(
-            tx,
-            requestCtx.orgId,
-            requestCtx.roles,
-            opts.permission.resource,
-            opts.permission.action
-          );
-
-          if (!hasPerm) {
-             throw new ApiError(403, 'Permission insuffisante pour cette action.', 'FORBIDDEN');
-          }
+          perms.assert(opts.permission.resource, opts.permission.action);
         }
-
-        const scope = await loadCenterScope(tx, requestCtx.orgId, requestCtx.userId);
 
         return handler(req, {
           ...requestCtx,
+          roles,
           tx,
           scope,
+          perms,
           params: routeArgs.params,
           searchParams: req.nextUrl.searchParams,
         });

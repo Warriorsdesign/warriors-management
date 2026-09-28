@@ -109,15 +109,20 @@ export class CenterScope {
 
 /**
  * Lit rôles et affectations en base (les rôles du JWT restent figés jusqu'à la reconnexion :
- * un administrateur qui retire le rôle ADMIN ou change les centres doit prendre effet tout de suite).
+ * un administrateur qui retire le rôle ADMIN, renomme un rôle ou change les centres doit
+ * prendre effet tout de suite). Les rôles lus ici servent aussi aux permissions de la requête.
  */
-export async function loadCenterScope(tx: TenantClient, orgId: string, userId: string): Promise<CenterScope> {
+export async function loadUserAccess(
+  tx: TenantClient,
+  orgId: string,
+  userId: string
+): Promise<{ roles: string[]; scope: CenterScope }> {
   const user = await tx.user.findFirst({
     where: { id: userId, organizationId: orgId },
     select: { roles: true, centers: { where: { organizationId: orgId }, select: { id: true } } },
   });
   if (!user) throw new ApiError(401, 'Unauthorized', 'USER_NOT_FOUND');
-  if (user.roles.includes(ROLES.ADMIN)) return new CenterScope(null, true);
+  if (user.roles.includes(ROLES.ADMIN)) return { roles: user.roles, scope: new CenterScope(null, true) };
   const ids = user.centers.map((c) => c.id);
-  return new CenterScope(ids.length > 0 ? ids : null);
+  return { roles: user.roles, scope: new CenterScope(ids.length > 0 ? ids : null) };
 }

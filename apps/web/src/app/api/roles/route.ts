@@ -1,73 +1,54 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/errors';
-import { logAuditEvent } from '@/lib/audit/audit-logger';
+import { ROLES } from '@/lib/auth/roles';
+import { ensureOrgSystemRoles, orgRoleScope } from '@/lib/auth/permissions';
+import { grantsToRows } from '@/lib/auth/permissionCatalog';
+import { auditRoleEvent, countUsersByRole, inputToGrants, toRoleDTO } from '@/lib/business/roles';
+import { createRoleSchema } from '@/lib/validation/roles';
 
-export const GET = withApiRoute(async (req, { tx, orgId }) => {
-  const roles = await tx.role.findMany({
-    where: {
-      OR: [
-        { organizationId: orgId },
-        { isSystem: true, organizationId: null }
-      ]
-    },
-    include: {
-      permissions: true
-    },
-    orderBy: { createdAt: 'desc' }
-  });
+/**
+ * Rôles de l'organisation : ADMIN (global, verrouillé), copies modifiables des rôles système
+ * (GESTIONNAIRE, COMPTABLE) et rôles créés par l'organisation. Les modèles globaux des rôles
+ * système ne sont jamais renvoyés : chaque organisation travaille sur sa copie.
+ */
+export const GET = withApiRoute(async (_req, { tx, orgId }) => {
+  await ensureOrgSystemRoles(tx, orgId);
+  const [roles, counts] = await Promise.all([
+    tx.role.findMany({
+      where: { OR: [{ organizationId: orgId }, { name: ROLES.ADMIN, isSystem: true, organizationId: null }] },
+      include: { permissions: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+    countUsersByRole(tx, orgId),
+  ]);
 
-  return NextResponse.json(roles);
+  const rank = (r: (typeof roles)[number]) => (r.organizationId === null ? 0 : r.systemKey ? 1 : 2);
+  const sorted = [...roles].sort((a, b) => rank(a) - rank(b) || a.createdAt.getTime() - b.createdAt.getTime());
+  return NextResponse.json(sorted.map((r) => toRoleDTO(r, counts.get(r.name) ?? 0)));
 }, { permission: { resource: 'users', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
-  const body = await req.json();
-  const { name, description, permissions } = body;
+  const body = createRoleSchema.parse(await req.json());
+  const name = body.name.toUpperCase();
 
-  if (!name || typeof name !== 'string' || name.trim() === '') {
-    throw new ApiError(400, 'Le nom du rôle est requis');
-  }
-
-  // Check if role name already exists in org
-  const existingRole = await tx.role.findFirst({
-    where: {
-      name: name.trim(),
-      OR: [
-        { organizationId: orgId },
-        { isSystem: true, organizationId: null }
-      ]
-    }
-  });
-
+  const existingRole = await tx.role.findFirst({ where: { name, ...orgRoleScope(orgId) } });
   if (existingRole) {
-    throw new ApiError(409, 'Un rôle avec ce nom existe déjà');
+    throw new ApiError(409, 'Un rôle avec ce nom existe déjà.', 'ROLE_EXISTS');
   }
 
   const newRole = await tx.role.create({
     data: {
-      name: name.trim().toUpperCase(),
-      description,
+      name,
+      description: body.description || null,
       isSystem: false,
       organizationId: orgId,
-      permissions: {
-        create: permissions.map((p: any) => ({
-          resource: p.resource,
-          canRead: p.canRead,
-          canWrite: p.canWrite
-        }))
-      }
+      permissions: { create: grantsToRows(inputToGrants(body.permissions)) },
     },
-    include: { permissions: true }
+    include: { permissions: true },
   });
 
-  await logAuditEvent({
-    organizationId: orgId,
-    userId,
-    action: 'CREATE_ROLE',
-    resource: 'Role',
-    resourceId: newRole.id,
-    details: { name: newRole.name }
-  });
+  await auditRoleEvent(tx, orgId, userId, 'CREATE_ROLE', newRole);
 
-  return NextResponse.json(newRole, { status: 201 });
-}, { permission: { resource: 'users', action: 'write' } });
+  return NextResponse.json(toRoleDTO(newRole, 0), { status: 201 });
+}, { allowedRoles: [ROLES.ADMIN] });

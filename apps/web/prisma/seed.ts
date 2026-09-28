@@ -15,6 +15,7 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { basePrisma } from '../src/lib/db';
 import { generateUserMatricule } from '../src/lib/business/matricule';
+import { ensureOrgSystemRoles } from '../src/lib/auth/permissions';
 
 const TEST_ADMIN_EMAILS = ['admin@org-a.test', 'admin@org-b.test'];
 export const TEST_PASSWORD = 'Password123!';
@@ -34,6 +35,7 @@ async function seedOrg(name: string, adminEmail: string) {
   return basePrisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe(`SELECT set_config('app.org_id', $1, true)`, orgId);
     const org = await tx.organization.create({ data: { id: orgId, name, email: adminEmail } });
+    await ensureOrgSystemRoles(tx, org.id);
     const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
     const matricule = await generateUserMatricule(org.name);
     const admin = await tx.user.create({

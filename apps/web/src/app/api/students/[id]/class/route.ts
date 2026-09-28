@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { changeClassSchema } from '@/lib/validation/students';
 
 type Params = { id: string };

@@ -130,6 +130,24 @@ export default function DashboardPage() {
   };
 
   const handleExportPdf = (data: DashboardStatsDTO) => {
+    // Rôle sans indicateurs financiers : bilan des effectifs uniquement (aucun montant).
+    if (!data.financeVisible) {
+      const rows = data.formationBreakdown
+        .map((f) => `<tr><td>${f.name}</td><td class="amount">${f.entries}</td><td class="amount">${f.exits}</td><td class="amount">${f.effectif}</td></tr>`)
+        .join("");
+      openPrintWindow(
+        `Bilan des effectifs - ${data.period.label}`,
+        `<h2>Effectifs</h2>
+         <table><tbody>
+           <tr><td>Étudiants actifs</td><td class="amount">${data.activeStudents} sur ${data.totalStudents}</td></tr>
+           <tr><td>Entrées</td><td class="amount">${data.studentFlow.entries}</td></tr>
+           <tr><td>Sorties</td><td class="amount">${data.studentFlow.exits}</td></tr>
+         </tbody></table>
+         <h2>Par formation</h2>
+         <table><thead><tr><th>Formation</th><th class="amount">Entrées</th><th class="amount">Sorties</th><th class="amount">Effectif</th></tr></thead><tbody>${rows}</tbody></table>`
+      );
+      return;
+    }
     const kpiRows = `
       <tr><td>CA encaissé</td><td class="amount">${formatCurrency(data.revenue)}</td></tr>
       <tr><td>Dépenses</td><td class="amount">${formatCurrency(data.expenses)}</td></tr>
@@ -203,6 +221,8 @@ export default function DashboardPage() {
     { entries: 0, exits: 0, net: 0, effectif: 0, resteAEncaisser: 0 }
   );
 
+  // Rôle sans indicateurs financiers : l'API ne renvoie aucun montant, les blocs sont masqués.
+  const fin = stats.financeVisible;
   const revenuePercentOfExpenses = stats.revenue > 0 ? Math.round((stats.expenses / stats.revenue) * 100) : 0;
 
   return (
@@ -254,7 +274,7 @@ export default function DashboardPage() {
           onClick={() => handleExportPdf(stats)}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
         >
-          <Download className="w-4 h-4" /> Exporter le bilan (PDF)
+          <Download className="w-4 h-4" /> {stats.financeVisible ? "Exporter le bilan (PDF)" : "Exporter les effectifs (PDF)"}
         </button>
         </div>
       </div>
@@ -279,6 +299,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {fin && (
+        <>
         <Card className="shadow-none border border-border rounded-xl transition-all duration-300 hover:shadow-md hover:-translate-y-1 bg-card">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -335,8 +357,11 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground mt-1">Reste à encaisser : {formatCurrency(stats.totalToCollect)}</p>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
 
+      {fin && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Finance chart */}
         <Card className="col-span-1 lg:col-span-2 shadow-none border border-border rounded-xl flex flex-col">
@@ -432,14 +457,15 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Par formation */}
-        <Card className="col-span-1 lg:col-span-2 shadow-none border border-border rounded-xl">
+        <Card className={`col-span-1 ${fin ? 'lg:col-span-2' : 'lg:col-span-3'} shadow-none border border-border rounded-xl`}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <CardTitle className="text-sm font-semibold">Par formation</CardTitle>
-              <CardDescription className="text-xs">Mouvements de la période et encaissements</CardDescription>
+              <CardDescription className="text-xs">{fin ? 'Mouvements de la période et encaissements' : 'Mouvements de la période et effectifs'}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Trier :</span>
@@ -448,7 +474,7 @@ export default function DashboardPage() {
                   { label: 'Effectif', value: 'effectif' },
                   { label: 'Nom', value: 'name' },
                   { label: 'Net', value: 'net' },
-                  { label: 'Reste à encaisser', value: 'resteAEncaisser' },
+                  ...(fin ? [{ label: 'Reste à encaisser', value: 'resteAEncaisser' }] : []),
                 ]}
                 value={sortKey}
                 onChange={(val) => setSortKey(val as typeof sortKey)}
@@ -466,7 +492,7 @@ export default function DashboardPage() {
                     <th className="pb-2 text-right font-medium">Sorties</th>
                     <th className="pb-2 text-right font-medium">Net</th>
                     <th className="pb-2 text-right font-medium">Effectif</th>
-                    <th className="pb-2 text-right font-medium">Reste à encaisser</th>
+                    {fin && <th className="pb-2 text-right font-medium">Reste à encaisser</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -477,7 +503,7 @@ export default function DashboardPage() {
                       <td className="py-2.5 text-right text-rose-600">-{f.exits}</td>
                       <td className="py-2.5 text-right font-medium">{f.net > 0 ? '+' : ''}{f.net}</td>
                       <td className="py-2.5 text-right">{f.effectif}</td>
-                      <td className="py-2.5 text-right text-muted-foreground">{formatCurrency(f.resteAEncaisser)}</td>
+                      {fin && <td className="py-2.5 text-right text-muted-foreground">{formatCurrency(f.resteAEncaisser)}</td>}
                     </tr>
                   ))}
                   <tr className="font-semibold border-t-2 border-border">
@@ -486,7 +512,7 @@ export default function DashboardPage() {
                     <td className="py-2.5 text-right text-rose-600">-{totals.exits}</td>
                     <td className="py-2.5 text-right">{totals.net > 0 ? '+' : ''}{totals.net}</td>
                     <td className="py-2.5 text-right">{totals.effectif}</td>
-                    <td className="py-2.5 text-right">{formatCurrency(totals.resteAEncaisser)}</td>
+                    {fin && <td className="py-2.5 text-right">{formatCurrency(totals.resteAEncaisser)}</td>}
                   </tr>
                 </tbody>
               </table>
@@ -504,6 +530,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Dépenses par catégorie */}
+        {fin && (
         <Card className="col-span-1 shadow-none border border-border rounded-xl">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">Dépenses par catégorie</CardTitle>
@@ -526,9 +553,11 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
       {/* Dernières transactions */}
+      {fin && (
       <Card className="shadow-none border border-border rounded-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold">Dernières transactions</CardTitle>
@@ -557,6 +586,7 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Modal "À traiter" - liste complète */}
       <Modal

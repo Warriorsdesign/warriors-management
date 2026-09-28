@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, IdCard, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
+import { markTabSession } from "@/lib/auth/tabSession";
 
 function LoginForm() {
   const router = useRouter();
@@ -27,6 +28,8 @@ function LoginForm() {
         method: "POST",
         body: JSON.stringify({ matricule, password }),
       });
+      // Cet onglet porte la session : sa fermeture (ou celle du navigateur) déconnecte.
+      markTabSession("app");
       // Priorité : changement du mot de passe provisoire, puis assistant de configuration,
       // puis la page demandée avant la connexion.
       router.push(redirectTo ?? searchParams.get("redirect") ?? "/");

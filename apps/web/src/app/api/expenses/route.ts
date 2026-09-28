@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
-import { PERMISSIONS } from '@/lib/auth/roles';
 import { createExpenseSchema } from '@/lib/validation/expenses';
 import { parseCenterIds } from '@/lib/api/centerFilter';
 import { ApiError } from '@/lib/api/errors';
