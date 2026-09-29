@@ -7,6 +7,7 @@ import type { PermissionAction, PermissionResource } from '@/lib/auth/permission
 import { loadUserAccess, type CenterScope } from '@/lib/auth/centerScope';
 import type { Role } from '@/lib/auth/roles';
 import { ApiError, toErrorResponse } from './errors';
+import { getAccessBlock } from '@/lib/business/subscriptionAccess';
 
 interface RouteCtx<P> extends RequestContext {
   tx: TenantClient;
@@ -38,14 +39,22 @@ export function withApiRoute<P = Record<string, string>>(
       const requestCtx = getRequestContext(req);
 
       return await withTenantContext(requestCtx.orgId, async (tx) => {
-        // Vérification de la suspension de l'organisation (Phase 12, 13)
+        // Organisation suspendue, essai ou abonnement terminé : accès coupé (Phase 12, 13).
         const org = await tx.organization.findUnique({
           where: { id: requestCtx.orgId },
-          select: { status: true },
+          select: {
+            status: true,
+            name: true,
+            subscription: { select: { status: true, endDate: true, plan: { select: { price: true } } } },
+          },
         });
-
-        if (!org || org.status === 'suspendu') {
+        if (!org) {
           throw new ApiError(403, 'Votre organisation est suspendue. Accès refusé.', 'ORG_SUSPENDED');
+        }
+        const block = getAccessBlock(org, org.subscription);
+        if (block) {
+          // Un seul code côté client (ORG_SUSPENDED) ; le message précise la raison.
+          throw new ApiError(403, block.message, 'ORG_SUSPENDED', { reason: block.code });
         }
 
         // Rôles relus en base à chaque requête (ceux du JWT peuvent dater de la connexion).

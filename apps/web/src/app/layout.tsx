@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/layout/LayoutWrapper";
@@ -8,7 +9,7 @@ const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Warriors Management",
-  description: "SaaS de gestion administrative et financière",
+  description: "Le suivi des inscriptions, des paiements et de l'activité des centres de formation.",
 };
 
 export default function RootLayout({
@@ -20,9 +21,8 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning>
       <body className={outfit.className}>
         <SWRProvider>
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
+          {/* Site public (landing, essai, informations légales) : sans menu ni barre de l'application. */}
+          {headers().get("x-wm-public-site") === "1" ? children : <LayoutWrapper>{children}</LayoutWrapper>}
         </SWRProvider>
       </body>
     </html>

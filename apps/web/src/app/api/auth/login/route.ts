@@ -3,6 +3,7 @@ import { adminPrisma } from '@/lib/db/admin';
 import bcrypt from 'bcryptjs';
 import { subscriptionService } from '@/lib/services/subscription.service';
 import { isOnboardingRequired, PASSWORD_CHANGE_PAGE, setAuthCookie } from '@/lib/auth/session';
+import { getAccessBlock } from '@/lib/business/subscriptionAccess';
 
 export async function POST(request: Request) {
   try {
@@ -61,13 +62,16 @@ export async function POST(request: Request) {
     if (user.organizationId) {
       const org = await adminPrisma.organization.findUnique({
         where: { id: user.organizationId },
-        select: { status: true, name: true },
+        select: {
+          status: true,
+          name: true,
+          subscription: { select: { status: true, endDate: true, plan: { select: { price: true } } } },
+        },
       });
-      if (org && org.status === 'suspendu') {
-        return NextResponse.json(
-          { error: `L'organisation "${org.name}" est actuellement suspendue. Accès bloqué.` },
-          { status: 403 }
-        );
+      // Suspension, fin d'essai ou d'abonnement : vérifiée ici sans attendre la suspension différée.
+      const block = org ? getAccessBlock(org, org.subscription) : null;
+      if (block) {
+        return NextResponse.json({ error: block.message, code: block.code }, { status: 403 });
       }
       onboardingRequired = await isOnboardingRequired(adminPrisma, user.organizationId, user.roles);
     }

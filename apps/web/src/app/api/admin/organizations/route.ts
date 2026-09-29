@@ -58,7 +58,7 @@ export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
 
 export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
   const body = await req.json();
-  const { name, email, phone, address, initialAdmin, plan = 'STARTER' } = body;
+  const { name, email, phone, address, initialAdmin, plan } = body;
 
   if (!name || typeof name !== 'string' || !name.trim()) {
     return NextResponse.json(
@@ -87,20 +87,24 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 30);
 
-    // On récupère le plan sélectionné pour avoir ses limites
-    const selectedPlan = await tx.plan.findUnique({
-      where: { id: plan }
-    });
+    // Forfait choisi (par id ou par nom) ; à défaut, le forfait gratuit. Les noms des forfaits
+    // sont modifiables dans le back-office : aucun nom n'est codé en dur.
+    const selectedPlan =
+      (plan ? await tx.plan.findFirst({ where: { OR: [{ id: plan }, { name: plan }] } }) : null) ??
+      (await tx.plan.findFirst({ where: { price: 0 }, orderBy: { createdAt: 'asc' } }));
+    if (!selectedPlan) {
+      throw new Error('Aucun forfait disponible pour créer cet abonnement.');
+    }
 
     await tx.subscription.create({
       data: {
         organizationId: org.id,
-        planId: plan,
+        planId: selectedPlan.id,
         status: 'trial',
         startDate: new Date(),
         endDate,
-        maxCenters: selectedPlan?.maxCenters ?? 3,
-        maxStudents: selectedPlan?.maxStudents ?? 200,
+        maxCenters: selectedPlan.isUnlimitedCenters ? -1 : selectedPlan.maxCenters,
+        maxStudents: selectedPlan.isUnlimitedStudents ? -1 : selectedPlan.maxStudents,
       },
     });
 

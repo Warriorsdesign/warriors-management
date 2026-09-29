@@ -7,7 +7,6 @@ import { Toast } from "@/components/ui/toast";
 import { GlobalErrorModal } from "@/components/ui/GlobalErrorModal";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { PageAccessGuard } from "@/components/auth/PageAccessGuard";
-import { TabSessionGuard } from "@/components/auth/TabSessionGuard";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,11 +18,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // (sans sidebar/topbar) mais avec les retours UI globaux.
   if (isFullScreen) {
     return (
-      <TabSessionGuard scope="app" logoutUrl="/api/auth/logout" loginPath="/login">
+      <>
         {children}
         <Toast />
         <GlobalErrorModal />
-      </TabSessionGuard>
+      </>
     );
   }
 
@@ -37,7 +36,6 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <TabSessionGuard scope="app" logoutUrl="/api/auth/logout" loginPath="/login">
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 bg-[#FAFAFA] dark:bg-slate-900/10 transition-all duration-300 ease-in-out">
@@ -50,6 +48,5 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
       <Toast />
       <GlobalErrorModal />
     </div>
-    </TabSessionGuard>
   );
 }

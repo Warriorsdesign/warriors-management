@@ -1,11 +1,10 @@
 "use client"
-import React, { useState, Suspense } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Lock, IdCard, Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { apiFetch, ApiClientError } from "@/lib/api/client";
-import { markTabSession } from "@/lib/auth/tabSession";
+import { apiFetch, ApiClientError, LOGIN_NOTICE_KEY } from "@/lib/api/client";
 
 function LoginForm() {
   const router = useRouter();
@@ -18,6 +17,19 @@ function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Message laissé par une coupure d'accès en cours de session (fin d'essai, suspension).
+  useEffect(() => {
+    try {
+      const notice = sessionStorage.getItem(LOGIN_NOTICE_KEY);
+      if (notice) {
+        setErrorMsg(notice);
+        sessionStorage.removeItem(LOGIN_NOTICE_KEY);
+      }
+    } catch {
+      // stockage indisponible
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -28,8 +40,6 @@ function LoginForm() {
         method: "POST",
         body: JSON.stringify({ matricule, password }),
       });
-      // Cet onglet porte la session : sa fermeture (ou celle du navigateur) déconnecte.
-      markTabSession("app");
       // Priorité : changement du mot de passe provisoire, puis assistant de configuration,
       // puis la page demandée avant la connexion.
       router.push(redirectTo ?? searchParams.get("redirect") ?? "/");
@@ -116,6 +126,13 @@ function LoginForm() {
           </button>
         </form>
       </Card>
+
+      <p className="mt-6 text-sm text-muted-foreground text-center z-10">
+        Pas encore de compte ?{" "}
+        <a href="/essai" className="font-semibold text-foreground hover:underline">Essayer gratuitement 14 jours</a>
+      </p>
+      {/* <a> et non <Link> : le site public a sa propre mise en page racine (voir app/layout.tsx). */}
+      <a href="/" className="mt-2 text-xs text-muted-foreground hover:text-foreground z-10">Retour au site</a>
 
       <p className="mt-8 text-sm text-muted-foreground text-center z-10">
         &copy; {new Date().getFullYear()} Warriors Management. Tous droits réservés.

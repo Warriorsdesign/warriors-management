@@ -1,5 +1,8 @@
 import { mutate as globalMutate } from 'swr';
 
+/** Message à afficher sur la page de connexion après une coupure d'accès (voir apiFetch). */
+export const LOGIN_NOTICE_KEY = 'wm-login-notice';
+
 export class ApiClientError extends Error {
   status: number;
   code?: string;
@@ -39,6 +42,17 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
     // Mot de passe provisoire non changé (voir middleware.ts) : retour à la page dédiée.
     if (body.code === 'PASSWORD_CHANGE_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/change-password') {
       window.location.href = '/change-password';
+    }
+    // Accès coupé en cours de session (fin d'essai, abonnement échu, suspension) : déconnexion,
+    // puis retour à la connexion où le message est affiché.
+    if (body.code === 'ORG_SUSPENDED' && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      try {
+        sessionStorage.setItem(LOGIN_NOTICE_KEY, body.error ?? '');
+      } catch {
+        // stockage indisponible : la page de connexion affichera l'erreur à la prochaine tentative
+      }
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => undefined);
+      window.location.href = '/login';
     }
     throw new ApiClientError(res.status, body.error ?? 'Une erreur est survenue.', body.code, body.details);
   }

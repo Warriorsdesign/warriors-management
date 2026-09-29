@@ -20,6 +20,7 @@ export type ClassStatus = 'ouverte' | 'complete' | 'cloturee';
 
 export type OrganizationStatus = 'actif' | 'suspendu';
 
-export type SubscriptionPlan = 'STARTER' | 'PRO' | 'ENTERPRISE';
+/** Nom d'un forfait (modifiable dans le back-office, table Plan). */
+export type SubscriptionPlan = string;
 
 export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'suspended';

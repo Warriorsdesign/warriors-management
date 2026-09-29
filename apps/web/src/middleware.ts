@@ -3,6 +3,19 @@ import type { NextRequest } from 'next/server';
 import { verifyToken, verifyAdminToken } from './lib/auth/jwt';
 import { PASSWORD_CHANGE_ALLOWED_PATHS, PASSWORD_CHANGE_PAGE } from './lib/auth/password-change';
 
+/** Pages du site public (landing, inscription, informations légales) : affichées sans l'interface de l'application. */
+const PUBLIC_SITE_PAGES = ['/accueil', '/essai', '/informations-legales'];
+const PUBLIC_SITE_HEADER = 'x-wm-public-site'; // lu par app/layout.tsx
+
+/** Requête marquée « site public » pour que le layout racine n'affiche ni menu ni barre du haut. */
+function publicSite(request: NextRequest, rewriteTo?: string) {
+  const headers = new Headers(request.headers);
+  headers.set(PUBLIC_SITE_HEADER, '1');
+  return rewriteTo
+    ? NextResponse.rewrite(new URL(rewriteTo, request.url), { request: { headers } })
+    : NextResponse.next({ request: { headers } });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -75,10 +88,19 @@ export async function middleware(request: NextRequest) {
   // 3. ZONE CLIENT MULTI-TENANT (/login, /, /students, etc.)
   // =========================================================================
   const isClientPublic = pathname === '/login' || pathname.startsWith('/api/auth/login');
+  const isPublicSitePage = PUBLIC_SITE_PAGES.includes(pathname);
+
+  // API publiques (inscription à l'essai) : sans session.
+  if (pathname.startsWith('/api/public/')) {
+    return NextResponse.next();
+  }
 
   const token = request.cookies.get('auth_token')?.value;
 
   if (!token) {
+    // Visiteur non connecté : l'adresse racine affiche la landing (l'URL reste « / »).
+    if (pathname === '/') return publicSite(request, '/accueil');
+    if (isPublicSitePage) return publicSite(request);
     if (isClientPublic) {
       return NextResponse.next();
     }
@@ -93,10 +115,11 @@ export async function middleware(request: NextRequest) {
   try {
     const payload = await verifyToken(token);
 
-    // Si déjà connecté et tente d'aller sur /login -> rediriger vers la page d'accueil client
-    if (pathname === '/login') {
+    // Si déjà connecté et tente d'aller sur /login (ou de recréer un essai) -> tableau de bord
+    if (pathname === '/login' || pathname === '/essai') {
       return NextResponse.redirect(new URL('/', request.url));
     }
+    if (isPublicSitePage) return publicSite(request);
 
     // Mot de passe provisoire : tant qu'il n'est pas changé, seule la page de changement (et les
     // APIs strictement nécessaires) est accessible. Appliqué ici pour couvrir TOUTES les pages et
@@ -116,6 +139,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete(PUBLIC_SITE_HEADER); // jamais fourni par le navigateur
     requestHeaders.set('x-org-id', payload.orgId);
     requestHeaders.set('x-user-id', payload.userId);
     requestHeaders.set('x-user-roles', JSON.stringify(payload.roles ?? []));
@@ -126,6 +150,9 @@ export async function middleware(request: NextRequest) {
       },
     });
   } catch {
+    // Session expirée ou invalide : même traitement qu'un visiteur.
+    if (pathname === '/') return publicSite(request, '/accueil');
+    if (isPublicSitePage) return publicSite(request);
     if (isClientPublic) {
       return NextResponse.next();
     }

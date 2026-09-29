@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      // Cookie de session : effacé à la fermeture du navigateur (le JWT expire après 12 heures).
+      maxAge: 60 * 60 * 12, // 12 heures
     });
 
     return response;

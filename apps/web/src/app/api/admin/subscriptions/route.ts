@@ -62,7 +62,7 @@ export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
       ...sub,
       status: computedStatus,
       daysLeft,
-      plan: sub.plan?.name || "STARTER",
+      plan: sub.plan?.name ?? "-",
       planId: sub.planId
     };
   });

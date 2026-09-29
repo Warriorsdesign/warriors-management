@@ -33,7 +33,7 @@ export function OrganizationModal({
   const [email, setEmail] = useState(initialData?.email || "");
   const [phone, setPhone] = useState(initialData?.phone || "");
   const [address, setAddress] = useState(initialData?.address || "");
-  const [plan, setPlan] = useState("STARTER");
+  const [plan, setPlan] = useState(""); // id du forfait, choisi dans la liste
 
   const [adminFirstName, setAdminFirstName] = useState("");
   const [adminLastName, setAdminLastName] = useState("");
