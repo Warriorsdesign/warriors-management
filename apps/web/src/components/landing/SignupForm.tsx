@@ -48,7 +48,7 @@ export function SignupForm() {
     const endsAt = new Date(result.trialEndsAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
     return (
       <div className="text-center">
-        <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+        <CheckCircle2 className="w-12 h-12 text-[var(--lp-accent)] mx-auto" />
         <h2 className="mt-4 text-2xl font-bold text-foreground">Votre espace est prêt</h2>
         <p className="mt-2 text-muted-foreground">Votre essai gratuit court jusqu’au {endsAt}.</p>
         <div className="mt-6 rounded-xl border-2 border-dashed border-foreground/30 bg-secondary/40 p-5">

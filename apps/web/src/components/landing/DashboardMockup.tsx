@@ -3,7 +3,6 @@ import { BarChart3, Building2, CreditCard, GraduationCap, Layers, LayoutDashboar
 /**
  * Maquette du tableau de bord, reconstruite à partir de l'interface réelle (mêmes indicateurs :
  * effectifs, entrées / sorties, CA encaissé, recouvrement, par formation, à traiter).
- * Données fictives, signalées comme telles.
  */
 const BARS = [34, 48, 26, 60, 42, 70, 55, 78, 40, 66, 88, 58, 72, 50, 84];
 
@@ -26,15 +25,15 @@ const NAV = [
 
 export function DashboardMockup() {
   return (
-    <figure aria-label="Exemple du tableau de bord, avec des données fictives">
-      <div className="rounded-[20px] border border-[var(--lp-line)] bg-white shadow-[0_40px_80px_-40px_rgba(20,20,20,0.35)] overflow-hidden text-[var(--lp-ink)]">
+    <figure aria-label="Aperçu du tableau de bord">
+      <div className="rounded-[20px] border border-[var(--lp-line)] bg-white shadow-[0_50px_90px_-45px_rgba(93,14,65,0.45)] overflow-hidden text-[var(--lp-ink)]">
         <div className="flex">
-          <aside className="hidden md:flex w-48 shrink-0 flex-col gap-1 border-r border-[var(--lp-line)] p-4 bg-[#fafaf8]">
+          <aside className="hidden md:flex w-48 shrink-0 flex-col gap-1 border-r border-[var(--lp-line)] p-4 bg-[#fbf9fa]">
             <p className="text-[11px] font-bold mb-3">Institut Excellence</p>
             {NAV.map((n) => (
               <span
                 key={n.label}
-                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] ${n.active ? "bg-[#ecebe6] font-semibold" : "text-[var(--lp-muted)]"}`}
+                className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] ${n.active ? "bg-[var(--lp-accent-soft)] text-[var(--lp-accent)] font-semibold" : "text-[var(--lp-muted)]"}`}
               >
                 <n.icon className="w-3.5 h-3.5" aria-hidden="true" /> {n.label}
               </span>
@@ -46,7 +45,7 @@ export function DashboardMockup() {
               <p className="text-sm font-bold">Bonjour, Aïcha</p>
               <div className="flex gap-1 text-[10px] font-medium">
                 <span className="px-2 py-1 rounded-md text-[var(--lp-muted)]">Aujourd’hui</span>
-                <span className="px-2 py-1 rounded-md bg-[#ecebe6]">Ce mois</span>
+                <span className="px-2 py-1 rounded-md bg-[var(--lp-accent)] text-white">Ce mois</span>
                 <span className="hidden sm:inline px-2 py-1 rounded-md text-[var(--lp-muted)]">Trimestre</span>
                 <span className="hidden sm:inline px-2 py-1 rounded-md text-[var(--lp-muted)]">Année</span>
               </div>
@@ -54,10 +53,10 @@ export function DashboardMockup() {
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
               {[
-                { label: "Étudiants actifs", value: "156", sub: <><span className="text-emerald-700">+24 entrées</span> <span className="text-rose-700">-8 sorties</span></> },
-                { label: "CA encaissé", value: "1 450 000", sub: <span className="text-emerald-700">FCFA ce mois</span> },
+                { label: "Étudiants actifs", value: "156", sub: <><span className="text-[var(--lp-accent)] font-semibold">+24 entrées</span> <span className="text-[var(--lp-muted)]">-8 sorties</span></> },
+                { label: "CA encaissé", value: "1 450 000", sub: <span className="text-[var(--lp-muted)]">FCFA ce mois</span> },
                 { label: "Dépenses", value: "610 000", sub: <span className="text-[var(--lp-muted)]">42 % du CA</span> },
-                { label: "Recouvrement", value: "82 %", sub: <span className="text-rose-700">320 000 en retard</span> },
+                { label: "Recouvrement", value: "82 %", sub: <span className="text-[var(--lp-accent)] font-semibold">320 000 en retard</span> },
               ].map((k) => (
                 <div key={k.label} className="rounded-xl border border-[var(--lp-line)] p-3">
                   <p className="text-[10px] text-[var(--lp-muted)]">{k.label}</p>
@@ -72,7 +71,7 @@ export function DashboardMockup() {
                 <p className="text-[10px] font-semibold mb-2">Encaissements, jour par jour</p>
                 <div className="flex items-end gap-1 h-24">
                   {BARS.map((h, i) => (
-                    <div key={i} className="flex-1 rounded-t bg-[#3f3f3c]" style={{ height: `${h}%` }} />
+                    <div key={i} className={`flex-1 rounded-t ${h === Math.max(...BARS) ? "bg-[var(--lp-accent)]" : "bg-[#1f191c]"}`} style={{ height: `${h}%` }} />
                   ))}
                 </div>
               </div>
@@ -107,8 +106,8 @@ export function DashboardMockup() {
                   {FORMATIONS.map((f) => (
                     <tr key={f.name} className="border-t border-[var(--lp-line)]">
                       <td className="py-1">{f.name}</td>
-                      <td className="py-1 text-right text-emerald-700">+{f.entries}</td>
-                      <td className="py-1 text-right text-rose-700">-{f.exits}</td>
+                      <td className="py-1 text-right text-[var(--lp-accent)] font-semibold">+{f.entries}</td>
+                      <td className="py-1 text-right text-[var(--lp-muted)]">-{f.exits}</td>
                       <td className="py-1 text-right tabular-nums">{f.effectif}</td>
                     </tr>
                   ))}
@@ -118,7 +117,6 @@ export function DashboardMockup() {
           </div>
         </div>
       </div>
-      <figcaption className="mt-3 text-center text-xs text-[var(--lp-muted)]">Exemple d’interface, données fictives</figcaption>
     </figure>
   );
 }

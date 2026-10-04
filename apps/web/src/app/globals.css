@@ -12,6 +12,8 @@
     --popover-foreground: #171717;
     --primary: #171717;
     --primary-foreground: #FFFFFF;
+    /* Teinte claire de la couleur principale (menu actif, badges) ; couleur au choix : lib/config/themes.ts */
+    --primary-soft: #EDEDED;
     --secondary: #E5E5E5;
     --secondary-foreground: #171717;
     --muted: #F5F5F5;

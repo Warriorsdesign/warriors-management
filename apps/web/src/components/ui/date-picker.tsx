@@ -184,7 +184,7 @@ export function DatePicker({
             <button
               type="button"
               onClick={goToToday}
-              className="text-blue-600 font-medium hover:text-blue-700 transition-colors focus:outline-none"
+              className="text-primary font-medium hover:opacity-80 transition-colors focus:outline-none"
             >
               Aujourd'hui
             </button>

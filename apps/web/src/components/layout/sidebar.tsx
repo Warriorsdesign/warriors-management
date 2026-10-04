@@ -140,7 +140,7 @@ export function Sidebar() {
                     "flex items-center rounded-lg text-sm transition-colors",
                     isSidebarCollapsed ? "justify-center p-2 w-10 h-10" : "gap-3 px-3 py-2",
                     pathname === "/"
-                      ? "bg-secondary text-foreground font-semibold"
+                      ? "bg-primary-soft text-primary font-semibold"
                       : "text-muted-foreground font-medium hover:bg-secondary hover:text-foreground"
                   )}
                   title={isSidebarCollapsed ? "Tableau de bord" : undefined}
@@ -171,7 +171,7 @@ export function Sidebar() {
                         "flex items-center rounded-lg text-sm transition-colors",
                         isSidebarCollapsed ? "justify-center p-2 w-10 h-10" : "gap-3 px-3 py-2",
                         isActive
-                          ? "bg-secondary text-foreground font-semibold"
+                          ? "bg-primary-soft text-primary font-semibold"
                           : "text-muted-foreground font-medium hover:bg-secondary hover:text-foreground"
                       )}
                       title={isSidebarCollapsed ? item.name : undefined}
@@ -206,7 +206,7 @@ export function Sidebar() {
                         "flex items-center rounded-lg text-sm transition-colors",
                         isSidebarCollapsed ? "justify-center p-2 w-10 h-10" : "gap-3 px-3 py-2",
                         isActive
-                          ? "bg-secondary text-foreground font-semibold"
+                          ? "bg-primary-soft text-primary font-semibold"
                           : "text-muted-foreground font-medium hover:bg-secondary hover:text-foreground"
                       )}
                       title={isSidebarCollapsed ? item.name : undefined}
@@ -240,7 +240,7 @@ export function Sidebar() {
                         "flex items-center rounded-lg text-sm transition-colors",
                         isSidebarCollapsed ? "justify-center p-2 w-10 h-10" : "gap-3 px-3 py-2",
                         isActive
-                          ? "bg-secondary text-foreground font-semibold"
+                          ? "bg-primary-soft text-primary font-semibold"
                           : "text-muted-foreground font-medium hover:bg-secondary hover:text-foreground"
                       )}
                       title={isSidebarCollapsed ? item.name : undefined}

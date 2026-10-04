@@ -4,6 +4,7 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/layout/LayoutWrapper";
 import { SWRProvider } from "@/components/providers/SWRProvider";
+import { THEME_BOOTSTRAP } from "@/lib/config/themes";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -19,6 +20,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        {/* Couleur de l'organisation remise avant le premier affichage (pas de flash de la couleur par défaut). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
       <body className={outfit.className}>
         <SWRProvider>
           {/* Site public (landing, essai, informations légales) : sans menu ni barre de l'application. */}

@@ -16,6 +16,7 @@ model Organization {
   phone     String?
   address   String?
   status    String   @default("actif") // "actif" | "suspendu"
+  themeColor String  @default("noir") // couleur de l'application, voir lib/config/themes.ts
 
   // Assistant de configuration initiale (état au niveau de l'organisation, pas de l'utilisateur :
   // un 2e administrateur ne doit pas reconfigurer une organisation déjà prête).

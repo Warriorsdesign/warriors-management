@@ -189,14 +189,12 @@ export function OnboardingWizard() {
               const isSkipped = skipped.includes(s.key) && !isCurrent;
               const isDone = i < index && !isSkipped;
               return (
-                <li key={s.key} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => goTo(s.key)}
-                    disabled={isSaving || isCurrent}
+                <li key={s.key} className="flex items-center gap-2" aria-current={isCurrent ? "step" : undefined}>
+                  {/* Indicateur de progression seulement : on avance avec Suivant / Précédent. */}
+                  <span
                     className={cn(
-                      "flex items-center gap-2 rounded-full pl-1 pr-3 py-1 text-xs font-medium transition-all",
-                      isCurrent ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-secondary text-muted-foreground"
+                      "flex items-center gap-2 rounded-full pl-1 pr-3 py-1 text-xs font-medium select-none",
+                      isCurrent ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"
                     )}
                   >
                     <span
@@ -208,7 +206,7 @@ export function OnboardingWizard() {
                       {isDone ? <Check className="w-3.5 h-3.5" /> : isSkipped ? <SkipForward className="w-3 h-3" /> : i + 1}
                     </span>
                     {s.label}
-                  </button>
+                  </span>
                   {i < ONBOARDING_STEPS.length - 1 && <span className="w-4 h-px bg-border" />}
                 </li>
               );

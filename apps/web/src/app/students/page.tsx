@@ -104,7 +104,7 @@ export default function StudentsPage() {
       case "solde":
         return <Badge className="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-600 border-none hover:bg-emerald-100 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>Soldé</Badge>;
       case "a_jour":
-        return <Badge className="px-2 py-0.5 text-[11px] bg-indigo-50 text-primary border-none hover:bg-indigo-100 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>À jour</Badge>;
+        return <Badge className="px-2 py-0.5 text-[11px] bg-primary-soft text-primary border-none hover:bg-primary-soft whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>À jour</Badge>;
       default:
         return null;
     }

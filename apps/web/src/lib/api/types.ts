@@ -30,6 +30,7 @@ export interface SessionOrganization {
   email: string | null;
   phone: string | null;
   address: string | null;
+  themeColor?: string;
   onboardingStatus?: OnboardingStatus;
   onboardingStep?: OnboardingStepKey | null;
 }
@@ -83,6 +84,7 @@ export interface UpdateOrganizationInput {
   phone?: string | null;
   address?: string | null;
   logoUrl?: string | null;
+  themeColor?: string;
 }
 
 // --- Center ---

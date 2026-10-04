@@ -34,6 +34,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, userId, perms }) => {
       email: organization.email,
       phone: organization.phone,
       address: organization.address,
+      themeColor: organization.themeColor,
       onboardingStatus: organization.onboardingStatus,
       onboardingStep: organization.onboardingStep,
     },

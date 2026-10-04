@@ -11,9 +11,10 @@ import { SubscriptionSettings } from "@/components/settings/SubscriptionSettings
 import { RoleSettings } from "@/components/settings/RoleSettings";
 import { ConfigurationSettings } from "@/components/settings/ConfigurationSettings";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Shield } from "lucide-react";
+import { Palette, Shield } from "lucide-react";
+import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 
-type Tab = "profile" | "organization" | "roles" | "subscription" | "configuration";
+type Tab = "profile" | "organization" | "appearance" | "roles" | "subscription" | "configuration";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("profile");
@@ -181,7 +182,7 @@ export default function SettingsPage() {
                 className={cn(
                   "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                   activeTab === "profile"
-                    ? "bg-secondary text-foreground font-semibold"
+                    ? "bg-primary-soft text-primary font-semibold"
                     : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                 )}
               >
@@ -195,19 +196,33 @@ export default function SettingsPage() {
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                       activeTab === "organization"
-                        ? "bg-secondary text-foreground font-semibold"
+                        ? "bg-primary-soft text-primary font-semibold"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                     )}
                   >
                     <Building2 className="w-4 h-4" />
                     Organisation
                   </button>
+                  {canConfigure && (
+                    <button
+                      onClick={() => setActiveTab("appearance")}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                        activeTab === "appearance"
+                          ? "bg-primary-soft text-primary font-semibold"
+                          : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                    >
+                      <Palette className="w-4 h-4" />
+                      Apparence
+                    </button>
+                  )}
                   <button
                     onClick={() => setActiveTab("roles")}
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                       activeTab === "roles"
-                        ? "bg-secondary text-foreground font-semibold"
+                        ? "bg-primary-soft text-primary font-semibold"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                     )}
                   >
@@ -219,7 +234,7 @@ export default function SettingsPage() {
                     className={cn(
                       "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                       activeTab === "subscription"
-                        ? "bg-secondary text-foreground font-semibold"
+                        ? "bg-primary-soft text-primary font-semibold"
                         : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                     )}
                   >
@@ -232,7 +247,7 @@ export default function SettingsPage() {
                       className={cn(
                         "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                         activeTab === "configuration"
-                          ? "bg-secondary text-foreground font-semibold"
+                          ? "bg-primary-soft text-primary font-semibold"
                           : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                       )}
                     >
@@ -381,6 +396,8 @@ export default function SettingsPage() {
           )}
 
           {/* ORGANISATION TAB */}
+          {activeTab === "appearance" && canConfigure && <AppearanceSettings />}
+
           {activeTab === "organization" && canReadOrg && (
             <div className="max-w-2xl space-y-8 animate-in fade-in duration-300">
               <div className="border-b border-border pb-4">

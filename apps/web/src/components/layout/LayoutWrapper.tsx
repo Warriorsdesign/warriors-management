@@ -7,6 +7,7 @@ import { Toast } from "@/components/ui/toast";
 import { GlobalErrorModal } from "@/components/ui/GlobalErrorModal";
 import { OnboardingBanner } from "@/components/onboarding/OnboardingBanner";
 import { PageAccessGuard } from "@/components/auth/PageAccessGuard";
+import { ThemeReset, ThemeSync } from "@/components/layout/ThemeSync";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,6 +20,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   if (isFullScreen) {
     return (
       <>
+        <ThemeSync />
         {children}
         <Toast />
         <GlobalErrorModal />
@@ -29,6 +31,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   if (isLoginPage || isAdminPath) {
     return (
       <main className="flex-1 min-h-screen">
+        {isAdminPath && <ThemeReset />}
         {children}
         <GlobalErrorModal />
       </main>
@@ -37,6 +40,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
+      <ThemeSync />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 bg-[#FAFAFA] dark:bg-slate-900/10 transition-all duration-300 ease-in-out">
         <Topbar />

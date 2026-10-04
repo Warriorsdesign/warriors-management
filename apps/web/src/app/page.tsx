@@ -384,7 +384,7 @@ export default function DashboardPage() {
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
                     {/* Largeur des barres adaptée au nombre de jours (1 jour à 1 an) */}
-                    <Bar dataKey="revenue" name="CA encaissé" fill="#334155" radius={[4, 4, 0, 0]} maxBarSize={18} />
+                    <Bar dataKey="revenue" name="CA encaissé" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={18} />
                     <Bar dataKey="expenses" name="Dépenses" fill="#fda4af" radius={[4, 4, 0, 0]} maxBarSize={18} />
                     <Line
                       type="monotone"
