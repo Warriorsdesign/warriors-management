@@ -3,6 +3,8 @@ import { withApiRoute } from '@/lib/api/handler';
 import { ROLES } from '@/lib/auth/roles';
 import { createCenterSchema } from '@/lib/validation/centers';
 import { ApiError } from '@/lib/api/errors';
+import { CONTACT } from '@/lib/config/contact';
+import { assertCenterNameAvailable, lockCenterCreation } from '@/lib/business/centers';
 
 export const GET = withApiRoute(async (_req, { tx, orgId, scope }) => {
   const centers = await tx.center.findMany({
@@ -14,7 +16,9 @@ export const GET = withApiRoute(async (_req, { tx, orgId, scope }) => {
 
 export const POST = withApiRoute(async (req, { tx, orgId }) => {
   const body = createCenterSchema.parse(await req.json());
-  
+  await lockCenterCreation(tx, orgId);
+  await assertCenterNameAvailable(tx, orgId, body.name);
+
   const sub = await tx.subscription.findUnique({
     where: { organizationId: orgId },
     select: { maxCenters: true, plan: true },
@@ -31,7 +35,7 @@ export const POST = withApiRoute(async (req, { tx, orgId }) => {
   if (sub.maxCenters !== -1 && centersCount >= sub.maxCenters) {
     throw new ApiError(
       403,
-      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxCenters} centre(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
+      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxCenters} centre(s). Pour passer à un forfait supérieur, contactez-nous : ${CONTACT.email} ou WhatsApp ${CONTACT.whatsappDisplay}.`,
       'QUOTA_EXCEEDED'
     );
   }

@@ -3,6 +3,7 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { updateOnboardingSchema } from '@/lib/validation/onboarding';
 import type { TenantClient } from '@/lib/db';
+import { countActiveStudents } from '@/lib/business/studentQuota';
 
 /** État de l'assistant + compteurs réels (source de vérité pour la reprise et le récapitulatif). */
 async function loadOnboardingState(tx: TenantClient, orgId: string) {
@@ -22,12 +23,13 @@ async function loadOnboardingState(tx: TenantClient, orgId: string) {
     })
   );
 
-  const [centers, formations, classes, users, students] = await Promise.all([
+  const [centers, formations, classes, users, students, activeStudents] = await Promise.all([
     tx.center.count({ where: { organizationId: orgId } }),
     tx.formation.count({ where: { organizationId: orgId } }),
     tx.classGroup.count({ where: { organizationId: orgId } }),
     tx.user.count({ where: { organizationId: orgId } }),
     tx.student.count({ where: { organizationId: orgId } }),
+    countActiveStudents(tx, orgId),
   ]);
 
   const sub = organization.subscription;
@@ -37,7 +39,7 @@ async function loadOnboardingState(tx: TenantClient, orgId: string) {
     step: organization.onboardingStep,
     skippedSteps: organization.onboardingSkippedSteps,
     completedAt: organization.onboardingCompletedAt,
-    counts: { centers, formations, classes, users, students },
+    counts: { centers, formations, classes, users, students, activeStudents },
     limits: sub
       ? { planName: sub.plan?.name ?? 'Essai', maxCenters: sub.maxCenters, maxStudents: sub.maxStudents }
       : null,

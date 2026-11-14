@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, LayoutDashboard, Loader2, Save, Users } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
+import { ThemePicker, ThemePreview } from "./ThemePicker";
 import { useSession } from "@/lib/hooks/useSession";
 import { updateOrganization } from "@/lib/hooks/useOrganization";
 import { ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
-import { applyTheme, DEFAULT_THEME, THEMES, type ThemeKey } from "@/lib/config/themes";
-import { cn } from "@/lib/utils";
+import { applyTheme, DEFAULT_THEME, type ThemeKey } from "@/lib/config/themes";
 
 /**
  * Couleur de l'application pour toute l'organisation (administrateur seulement).
@@ -63,35 +63,7 @@ export function AppearanceSettings() {
 
       <div>
         <p className="text-sm font-medium text-foreground mb-3">Couleur principale</p>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3" role="radiogroup" aria-label="Couleur principale">
-          {THEMES.map((t) => {
-            const active = selected === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => choose(t.key)}
-                className={cn(
-                  "group flex flex-col items-center gap-2 rounded-xl border p-3 transition-all",
-                  active ? "border-foreground/30 bg-secondary/40" : "border-border hover:border-foreground/20"
-                )}
-              >
-                <span
-                  className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-105",
-                    active && "ring-2 ring-offset-2 ring-offset-card"
-                  )}
-                  style={{ background: t.primary, ["--tw-ring-color" as string]: t.primary }}
-                >
-                  {active && <Check className="w-5 h-5 text-white" aria-hidden="true" />}
-                </span>
-                <span className={cn("text-xs", active ? "font-semibold text-foreground" : "text-muted-foreground")}>{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
+        <ThemePicker value={selected} onChange={choose} />
         <p className="text-xs text-muted-foreground mt-3">
           Les couleurs d&apos;état (retard, erreur, à jour) ne changent pas, pour rester lisibles quelle que soit la couleur choisie.
         </p>
@@ -100,28 +72,7 @@ export function AppearanceSettings() {
       {/* Aperçu : suit la couleur sélectionnée (variables appliquées sur toute l'application) */}
       <div>
         <p className="text-sm font-medium text-foreground mb-3">Aperçu</p>
-        <div className="rounded-xl border border-border bg-background p-4 flex flex-col sm:flex-row gap-4" aria-hidden="true">
-          <div className="sm:w-44 space-y-1">
-            <span className="flex items-center gap-2 rounded-md px-3 py-2 text-sm bg-primary-soft text-primary font-semibold">
-              <LayoutDashboard className="w-4 h-4" /> Tableau de bord
-            </span>
-            <span className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground">
-              <Users className="w-4 h-4" /> Étudiants
-            </span>
-          </div>
-          <div className="flex-1 rounded-lg border border-border bg-card p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">Nouvelle inscription</p>
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-primary-soft text-primary">Actif</span>
-            </div>
-            <div className="h-9 rounded-md border border-primary ring-1 ring-primary bg-background px-3 flex items-center text-sm text-muted-foreground">
-              Champ sélectionné
-            </div>
-            <span className="inline-flex h-9 px-4 items-center rounded-md bg-primary text-primary-foreground text-sm font-medium">
-              Valider
-            </span>
-          </div>
-        </div>
+        <ThemePreview />
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2 border-t border-border">

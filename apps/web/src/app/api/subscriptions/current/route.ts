@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
+import { countActiveStudents } from '@/lib/business/studentQuota';
 
 export const GET = withApiRoute(async (_req, { tx, orgId }) => {
   const organization = await tx.organization.findUnique({
@@ -37,7 +38,8 @@ export const GET = withApiRoute(async (_req, { tx, orgId }) => {
     subscription: sub,
     usage: {
       centers: organization._count.centers,
-      students: organization._count.students,
+      // Quota : étudiants actifs seulement (abandons et formations terminées exclus).
+      students: await countActiveStudents(tx, orgId),
     },
     payments: organization.platformPayments,
   });

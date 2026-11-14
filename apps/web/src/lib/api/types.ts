@@ -42,7 +42,8 @@ export interface OnboardingStateDTO {
   step: OnboardingStepKey | null;
   skippedSteps: OnboardingStepKey[];
   completedAt: string | null;
-  counts: { centers: number; formations: number; classes: number; users: number; students: number };
+  /** activeStudents : étudiants qui comptent dans le quota du forfait (hors abandons et diplômés). */
+  counts: { centers: number; formations: number; classes: number; users: number; students: number; activeStudents: number };
   limits: { planName: string; maxCenters: number; maxStudents: number } | null;
 }
 

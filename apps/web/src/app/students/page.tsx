@@ -568,6 +568,7 @@ export default function StudentsPage() {
                     if (errors.formationId) setErrors({ ...errors, formationId: '' });
                   }}
                   placeholder="Sélectionner une formation"
+                  disabled={!!editingStudent}
                   options={formations.map(f => ({ label: f.name, value: f.id }))}
                   className={errors.formationId ? "border-red-500 animate-shake" : ""}
                 />

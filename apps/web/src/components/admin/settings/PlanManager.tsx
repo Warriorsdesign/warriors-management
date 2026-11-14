@@ -374,7 +374,7 @@ export function PlanManager() {
               Annuler
             </button>
             <button
-              onClick={() => handleSave(isEditing === "new" ? undefined : isEditing)}
+              onClick={() => handleSave(isEditing === "new" ? undefined : isEditing ?? undefined)}
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
             >
               Enregistrer

@@ -3,11 +3,8 @@ import { ApiError, toErrorResponse } from '@/lib/api/errors';
 import { setAuthCookie } from '@/lib/auth/session';
 import { assertSignupRateLimit, createTrialOrganization } from '@/lib/business/signup';
 import { signupSchema } from '@/lib/validation/signup';
+import { clientIp } from '@/lib/auth/loginThrottle';
 
-function clientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  return (forwarded?.split(',')[0] ?? request.headers.get('x-real-ip') ?? '').trim();
-}
 
 /**
  * Inscription publique : crée l'établissement en essai gratuit et connecte directement son

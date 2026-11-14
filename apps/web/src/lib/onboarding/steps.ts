@@ -5,6 +5,7 @@
  */
 export const ONBOARDING_STEPS = [
   { key: 'welcome', label: 'Bienvenue', skippable: false },
+  { key: 'appearance', label: 'Apparence', skippable: false },
   { key: 'centers', label: 'Centres', skippable: true },
   { key: 'formations', label: 'Formations', skippable: true },
   { key: 'classes', label: 'Classes', skippable: true },

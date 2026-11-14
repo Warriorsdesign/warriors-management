@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import type { TenantClient } from '@/lib/db';
-import type { Installment } from './paymentSchedule';
+import { withLiveStatus, type Installment } from './paymentSchedule';
 import { dayKey, periodDays, type ResolvedPeriod } from '@/lib/api/periodRange';
 
 const INACTIVE_STATUSES = ['formation_terminee', 'abandonne'];
@@ -52,7 +52,7 @@ export async function getDashboardStats(
       include: { classGroup: { select: { formationId: true, formation: { select: { name: true } } } } },
     }),
     includeFinance
-      ? tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } })
+      ? tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }).then((rows) => rows.map((r) => withLiveStatus(r)))
       : Promise.resolve([]),
     tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
   ]);

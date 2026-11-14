@@ -4,6 +4,8 @@ import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { changeStatusSchema } from '@/lib/validation/students';
+import { assertClassHasRoom, isActiveStatus } from '@/lib/business/classStatus';
+import { assertStudentQuota } from '@/lib/business/studentQuota';
 
 type Params = { id: string };
 type ProgressionLog = { id: string; date: string; status: string; level?: string | null; recordedBy: string; reason?: string };
@@ -13,6 +15,12 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
   const student = await findOrgScopedOrThrow(() =>
     tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
+
+  if (!isActiveStatus(student.currentStatus) && isActiveStatus(body.status)) {
+    const classGroup = await tx.classGroup.findFirstOrThrow({ where: { id: student.classId, organizationId: orgId } });
+    await assertClassHasRoom(tx, classGroup, student.id);
+    await assertStudentQuota(tx, orgId);
+  }
 
   const existingLogs = (student.progressionLogs as ProgressionLog[] | null) ?? [];
   const newLog: ProgressionLog = {

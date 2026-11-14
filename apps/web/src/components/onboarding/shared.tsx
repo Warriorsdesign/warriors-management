@@ -3,6 +3,7 @@
 import React from "react";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CONTACT } from "@/lib/config/contact";
 
 /** Classes des champs texte, identiques à celles des formulaires existants (ex : app/centers/page.tsx). */
 export function inputClass(hasError?: boolean) {
@@ -31,7 +32,7 @@ export function Field({ label, error, children, className }: { label: string; er
 export function StepHeader({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description: string }) {
   return (
     <div className="flex items-start gap-4">
-      <div className="w-11 h-11 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+      <div className="w-11 h-11 shrink-0 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
         <Icon className="w-5 h-5" />
       </div>
       <div>
@@ -84,8 +85,8 @@ export function QuotaNote({ used, max, noun }: { used: number; max: number | und
   const reached = used >= max;
   return (
     <p className={cn("text-xs", reached ? "text-amber-700" : "text-muted-foreground")}>
-      {used} / {max} {noun} utilisés par votre abonnement.
-      {reached && " Limite atteinte : contactez admin@warriors-management.com pour passer à un plan supérieur."}
+      {used} / {max} {noun} {noun === "étudiants" ? "actifs " : ""}utilisés par votre abonnement.
+      {reached && ` Limite atteinte : pour passer à un forfait supérieur, contactez ${CONTACT.email} ou WhatsApp ${CONTACT.whatsappDisplay}.`}
     </p>
   );
 }

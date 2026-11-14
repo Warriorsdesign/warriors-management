@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { recordPaymentSchema } from '@/lib/validation/students';
-import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
+import { assertPaymentFits, rebuildScheduleForStudent, withLiveStatus } from '@/lib/business/paymentSchedule';
 import { ApiError } from '@/lib/api/errors';
 
 type Params = { id: string };
@@ -16,7 +16,7 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, perms, 
     tx.paymentSchedule.findFirst({ where: { studentId: student.id, organizationId: orgId } }),
     tx.payment.findMany({ where: { studentId: student.id, organizationId: orgId }, orderBy: { date: 'desc' } }),
   ]);
-  return NextResponse.json({ schedule, payments });
+  return NextResponse.json({ schedule: schedule && withLiveStatus(schedule), payments });
 }, { permission: { resource: 'students', action: 'read' } });
 
 export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, perms, params }) => {
@@ -28,6 +28,8 @@ export const POST = withApiRoute<Params>(async (req, { tx, orgId, userId, scope,
   const student = await findOrgScopedOrThrow(() =>
     tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
+
+  await assertPaymentFits(tx, student.id, orgId, body.amount);
 
   const payment = await tx.payment.create({
     data: {

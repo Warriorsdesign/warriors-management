@@ -725,8 +725,10 @@ export default function StudentDetailsPage() {
               value={studentFormData.formationId}
               onChange={(val) => setStudentFormData({...studentFormData, formationId: val, classId: ''})}
               placeholder="Sélectionner une formation"
+              disabled
               options={allFormations.map(f => ({ label: f.name, value: f.id }))}
             />
+            <p className="text-xs text-muted-foreground">La formation ne change pas : l'échéancier en dépend.</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Classe</label>
@@ -736,7 +738,7 @@ export default function StudentDetailsPage() {
               placeholder="Sélectionner une classe"
               disabled={!studentFormData.formationId}
               options={allClasses
-                .filter(c => c.formationId === studentFormData.formationId)
+                .filter(c => c.formationId === studentFormData.formationId && (c.id === student?.classId || c.status === 'ouverte'))
                 .map(c => ({ label: c.name, value: c.id }))
               }
             />

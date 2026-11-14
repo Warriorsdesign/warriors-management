@@ -3,7 +3,7 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
 import { createPaymentSchema } from '@/lib/validation/payments';
-import { rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
+import { assertPaymentFits, rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
 import { parseCenterIds } from '@/lib/api/centerFilter';
 
 export const GET = withApiRoute(async (_req, { tx, orgId, scope, searchParams }) => {
@@ -59,6 +59,8 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId, scope }) => {
     'Student not found'
   );
   if (!student) throw new ApiError(400, 'Étudiant introuvable.', 'STUDENT_NOT_FOUND');
+
+  await assertPaymentFits(tx, student.id, orgId, body.amount);
 
   const payment = await tx.payment.create({
     data: {

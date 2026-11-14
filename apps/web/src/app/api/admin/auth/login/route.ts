@@ -3,6 +3,7 @@ import { adminPrisma } from '@/lib/db/admin';
 import bcrypt from 'bcryptjs';
 import { signAdminToken } from '@/lib/auth/jwt';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
+import { clientIp, loginThrottleResponse, recordLoginFailure } from '@/lib/auth/loginThrottle';
 
 export async function POST(request: Request) {
   try {
@@ -25,7 +26,12 @@ export async function POST(request: Request) {
       },
     });
 
+    const ip = clientIp(request);
+    const throttled = await loginThrottleResponse(normalizedEmail, ip, user?.lastLoginAt);
+    if (throttled) return throttled;
+
     if (!user) {
+      await recordLoginFailure(normalizedEmail, ip);
       return NextResponse.json(
         { error: 'Identifiants invalides ou droits Super Administrateur inexistants.' },
         { status: 401 }
@@ -36,6 +42,7 @@ export async function POST(request: Request) {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
+      await recordLoginFailure(normalizedEmail, ip, user.id);
       return NextResponse.json(
         { error: 'Identifiants invalides ou droits Super Administrateur inexistants.' },
         { status: 401 }
@@ -51,6 +58,9 @@ export async function POST(request: Request) {
     }
 
     // Signature du token JWT Super Admin
+    // Connexion réussie : remet à zéro le compteur d'échecs de cet identifiant (voir loginThrottle).
+    await adminPrisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
     const token = await signAdminToken({
       userId: user.id,
       email: user.email,

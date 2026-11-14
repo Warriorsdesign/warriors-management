@@ -3,6 +3,7 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
 import { changeClassSchema } from '@/lib/validation/students';
+import { assertCanMoveToClass } from '@/lib/business/studentClass';
 
 type Params = { id: string };
 
@@ -13,6 +14,7 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params
   );
   const classGroup = await tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId, ...scope.classGroup() } });
   if (!classGroup) throw new ApiError(400, 'Classe introuvable.', 'CLASS_NOT_FOUND');
+  if (classGroup.id !== student.classId) await assertCanMoveToClass(tx, student, classGroup);
 
   const updated = await tx.student.update({ where: { id: student.id }, data: { classId: body.classId } });
   return NextResponse.json(updated);

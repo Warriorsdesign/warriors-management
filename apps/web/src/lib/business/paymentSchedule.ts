@@ -126,10 +126,58 @@ export function computeScheduleTotals(installments: Installment[], totalCost: nu
   return { paidAmount, remainingAmount, status };
 }
 
+/**
+ * Statuts recalculés au moment de la lecture : le statut stocké n'est mis à jour qu'à chaque
+ * paiement, alors qu'une échéance non soldée devient "en retard" dès que sa date passe, même
+ * sans aucun nouveau paiement. À appliquer sur tout échéancier lu en base avant affichage.
+ */
+export function withLiveStatus<T extends { status: string; remainingAmount: number; installments?: unknown }>(
+  schedule: T,
+  now: Date = new Date()
+): T {
+  const installments = schedule.installments as Installment[] | null | undefined;
+  if (!Array.isArray(installments)) return schedule;
+  const fresh = installments.map((i) => ({ ...i, status: computeInstallmentStatus(i.amount, i.dueDate, now) }));
+  const hasLate = fresh.some((i) => i.status === 'en_retard');
+  const status: InstallmentStatus = schedule.remainingAmount <= 0 ? 'solde' : hasLate ? 'en_retard' : 'a_jour';
+  return { ...schedule, installments: fresh, status };
+}
+
 export function buildInitialSchedule(input: InstallmentPlanInput, now: Date = new Date()) {
   const installments = buildInstallmentPlan(input, now);
   const totals = computeScheduleTotals(installments, input.totalCost);
   return { totalAmount: input.totalCost, installments, ...totals };
+}
+
+/**
+ * Un paiement ne peut pas dépasser le reste à payer de la formation (total de l'échéancier moins
+ * les paiements déjà enregistrés). `excludePaymentId` : paiement en cours de modification.
+ */
+export async function assertPaymentFits(
+  tx: TenantClient,
+  studentId: string,
+  orgId: string,
+  amount: number,
+  excludePaymentId?: string
+): Promise<void> {
+  const schedule = await tx.paymentSchedule.findFirst({ where: { studentId, organizationId: orgId }, select: { totalAmount: true } });
+  if (!schedule) return;
+  const paid = await tx.payment.aggregate({
+    where: { studentId, organizationId: orgId, ...(excludePaymentId ? { id: { not: excludePaymentId } } : {}) },
+    _sum: { amount: true },
+  });
+  const remaining = Math.max(0, schedule.totalAmount - (paid._sum.amount ?? 0));
+  if (amount > remaining) {
+    const fmt = (n: number) => new Intl.NumberFormat('fr-FR').format(n).replace(/\u202f|\u00a0/g, ' ');
+    throw new ApiError(
+      409,
+      remaining === 0
+        ? 'Cet étudiant a déjà soldé sa formation : aucun paiement supplémentaire ne peut être enregistré.'
+        : `Ce paiement dépasse le reste à payer : il reste ${fmt(remaining)} FCFA sur cette formation.`,
+      'PAYMENT_EXCEEDS_REMAINING',
+      { remaining }
+    );
+  }
 }
 
 /**

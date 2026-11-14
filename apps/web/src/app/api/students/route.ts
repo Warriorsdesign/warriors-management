@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
+import { withLiveStatus } from '@/lib/business/paymentSchedule';
+import { assertClassHasRoom, isActiveStatus } from '@/lib/business/classStatus';
+import { assertStudentQuota } from '@/lib/business/studentQuota';
 import { createStudentSchema } from '@/lib/validation/students';
 import { generateStudentMatricule } from '@/lib/business/matricule';
 import { buildInitialSchedule, rebuildScheduleForStudent } from '@/lib/business/paymentSchedule';
@@ -41,7 +44,7 @@ export const GET = withApiRoute(async (_req, { tx, orgId, scope, perms, searchPa
     tx.student.count({ where }),
     tx.student.findMany({
       where,
-      include: { schedules: { select: { status: true, remainingAmount: true }, take: 1 } },
+      include: { schedules: { select: { status: true, remainingAmount: true, installments: true }, take: 1 } },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -49,7 +52,10 @@ export const GET = withApiRoute(async (_req, { tx, orgId, scope, perms, searchPa
   ]);
 
   const level = perms.studentFinance;
-  const data = students.map(({ schedules, ...s }) => ({ ...s, schedule: redactScheduleSummary(schedules[0], level) }));
+  const data = students.map(({ schedules, ...s }) => {
+    const live = schedules[0] ? withLiveStatus(schedules[0]) : undefined;
+    return { ...s, schedule: redactScheduleSummary(live && { status: live.status, remainingAmount: live.remainingAmount }, level) };
+  });
 
   return NextResponse.json({ data, meta: { total, page, pageSize } });
 }, { permission: { resource: 'students', action: 'read' } });
@@ -63,36 +69,15 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId, scope, perms }
   });
   if (!classGroup) throw new ApiError(400, 'Classe introuvable.', 'CLASS_NOT_FOUND');
 
-  // Vérification de la capacité de la classe
-  const studentsInClass = await tx.student.count({
-    where: { classId: body.classId },
-  });
-
-  if (studentsInClass >= classGroup.capacity) {
-    throw new ApiError(403, `La classe est complète (capacité maximum de ${classGroup.capacity} atteinte).`, 'CLASS_FULL');
+  if (body.registrationFee > classGroup.formation.totalCost) {
+    throw new ApiError(400, `Les frais d'inscription dépassent le coût de la formation (${classGroup.formation.totalCost} FCFA).`, 'FEE_EXCEEDS_COST');
   }
 
-  // Vérification du quota d'abonnement (maxStudents)
-  const sub = await tx.subscription.findUnique({
-    where: { organizationId: orgId },
-    select: { maxStudents: true, plan: true },
-  });
+  // Classe ouverte et place libre (seuls les étudiants actifs comptent : un abandon libère sa place).
+  await assertClassHasRoom(tx, classGroup);
 
-  if (!sub) {
-    throw new ApiError(400, 'Abonnement introuvable.', 'SUBSCRIPTION_NOT_FOUND');
-  }
-
-  const studentsCount = await tx.student.count({
-    where: { organizationId: orgId },
-  });
-
-  if (sub.maxStudents !== -1 && studentsCount >= sub.maxStudents) {
-    throw new ApiError(
-      403,
-      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxStudents} étudiant(s). Veuillez contacter l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur.`,
-      'QUOTA_EXCEEDED'
-    );
-  }
+  // Quota du forfait : un étudiant inscrit directement comme abandonné ou diplômé n'en prend pas.
+  if (isActiveStatus(body.currentStatus)) await assertStudentQuota(tx, orgId);
 
   const matricule = await generateStudentMatricule(tx, orgId);
   const initial = buildInitialSchedule({

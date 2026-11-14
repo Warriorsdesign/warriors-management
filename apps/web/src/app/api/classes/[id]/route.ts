@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
+import { ApiError } from '@/lib/api/errors';
 import { updateClassSchema } from '@/lib/validation/classes';
 import { computeClassStatus, getActiveStudentsForClass } from '@/lib/business/classStatus';
 
@@ -43,6 +44,15 @@ export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, scope, para
   const classGroup = await findOrgScopedOrThrow(() =>
     tx.classGroup.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.classGroup() } })
   );
+  // La suppression d'une classe emporterait ses étudiants, leurs paiements et échéanciers (cascade).
+  const students = await tx.student.count({ where: { classId: classGroup.id } });
+  if (students > 0) {
+    throw new ApiError(
+      409,
+      `Cette classe contient ${students} étudiant(s) : la supprimer effacerait aussi leurs paiements. Clôturez-la plutôt, ou changez d'abord ses étudiants de classe.`,
+      'CLASS_HAS_STUDENTS'
+    );
+  }
   await tx.classGroup.delete({ where: { id: classGroup.id } });
   return NextResponse.json({ success: true });
 }, { permission: { resource: 'classes', action: 'write' } });

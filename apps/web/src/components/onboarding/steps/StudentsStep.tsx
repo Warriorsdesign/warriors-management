@@ -24,7 +24,7 @@ const INTERVALS: { label: string; value: IntervalType }[] = [
 ];
 
 const EMPTY = {
-  lastName: "", firstName: "", gender: "Male" as Gender, contact: "", email: "", classId: "", currentLevel: "",
+  lastName: "", firstName: "", gender: "Male" as Gender, contact: "", email: "", centerId: "", formationId: "", classId: "", currentLevel: "",
   enrollmentDate: new Date() as Date | undefined, registrationFee: "", paymentMethod: "Espèces" as PaymentMethod,
   installmentsCount: "", installmentInterval: "1_mois" as IntervalType,
 };
@@ -41,9 +41,15 @@ export function StudentsStep({ limits, studentCount }: { limits: OnboardingState
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const selectedClass = classes.find((c) => c.id === form.classId);
-  const selectedFormation = formations.find((f) => f.id === selectedClass?.formationId);
-  const centerName = (id: string) => centers.find((c) => c.id === id)?.name ?? "";
+  // Cascade centre -> formation -> classe (comme le formulaire d'inscription des étudiants) :
+  // formations proposées dans le centre, puis classes ouvertes de cette formation dans ce centre.
+  // Un seul centre : il est choisi d'office.
+  const centerId = centers.length === 1 ? centers[0].id : form.centerId;
+  const centerFormations = centerId ? formations.filter((f) => f.centers.some((c) => c.id === centerId)) : [];
+  const formationClasses = centerId && form.formationId
+    ? classes.filter((c) => c.centerId === centerId && c.formationId === form.formationId && c.status === "ouverte")
+    : [];
+  const selectedFormation = formations.find((f) => f.id === form.formationId);
 
   const update = (patch: Partial<typeof EMPTY>) => {
     setForm((f) => ({ ...f, ...patch }));
@@ -59,6 +65,8 @@ export function StudentsStep({ limits, studentCount }: { limits: OnboardingState
     if (!form.firstName.trim()) next.firstName = "Le prénom est requis.";
     if (!form.contact.trim()) next.contact = "Le contact est requis.";
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Email invalide.";
+    if (!centerId) next.centerId = "Le centre est requis.";
+    if (!form.formationId) next.formationId = "La formation est requise.";
     if (!form.classId) next.classId = "La classe est requise.";
     if (!form.enrollmentDate) next.enrollmentDate = "La date d'inscription est requise.";
     if (Number.isNaN(registrationFee) || registrationFee < 0) next.registrationFee = "Montant invalide.";
@@ -83,7 +91,7 @@ export function StudentsStep({ limits, studentCount }: { limits: OnboardingState
         installmentInterval: form.installmentInterval,
       });
       await revalidateResource("/api/onboarding");
-      setForm({ ...EMPTY, classId: form.classId });
+      setForm({ ...EMPTY, centerId: form.centerId, formationId: form.formationId, classId: form.classId });
       useUIStore.getState().showToast("L'étudiant a été inscrit avec succès.", "success");
     } catch (err) {
       useUIStore.getState().showToast(err instanceof ApiClientError ? err.message : "Une erreur est survenue.", "error");
@@ -157,21 +165,38 @@ export function StudentsStep({ limits, studentCount }: { limits: OnboardingState
                 <Field label="Email (optionnel)" error={errors.email} className="sm:col-span-2">
                   <input type="email" value={form.email} onChange={(e) => update({ email: e.target.value })} className={inputClass(!!errors.email)} placeholder="Ex : jp.mbarga@gmail.com" />
                 </Field>
+                <Field label="Centre" error={errors.centerId}>
+                  <Select
+                    value={centerId}
+                    onChange={(v) => update({ centerId: v, formationId: "", classId: "", currentLevel: "" })}
+                    placeholder="Sélectionner un centre"
+                    options={centers.map((c) => ({ label: c.name, value: c.id }))}
+                  />
+                </Field>
+                <Field label="Formation" error={errors.formationId}>
+                  <Select
+                    value={form.formationId}
+                    onChange={(v) => update({ formationId: v, classId: "", currentLevel: "" })}
+                    placeholder={!centerId ? "Choisissez d'abord un centre" : centerFormations.length ? "Sélectionner une formation" : "Aucune formation dans ce centre"}
+                    disabled={!centerId}
+                    isSearchable
+                    options={centerFormations.map((f) => ({ label: f.name, value: f.id }))}
+                  />
+                </Field>
                 <Field label="Classe" error={errors.classId}>
                   <Select
                     value={form.classId}
-                    onChange={(v) => update({ classId: v, currentLevel: "" })}
-                    placeholder="Sélectionner une classe"
+                    onChange={(v) => update({ classId: v })}
+                    placeholder={!form.formationId ? "Choisissez d'abord une formation" : formationClasses.length ? "Sélectionner une classe" : "Aucune classe ouverte pour cette formation"}
+                    disabled={!form.formationId}
                     isSearchable
-                    options={classes.map((c) => ({ label: `${c.name} (${centerName(c.centerId)})`, value: c.id }))}
+                    options={formationClasses.map((c) => ({ label: c.name, value: c.id }))}
                   />
                 </Field>
-                {selectedFormation?.hasLevels ? (
+                {selectedFormation?.hasLevels && (
                   <Field label="Niveau initial">
                     <Select value={form.currentLevel} onChange={(v) => update({ currentLevel: v })} placeholder="Sélectionner un niveau" options={selectedFormation.levels.map((l) => ({ label: l.name, value: l.id }))} />
                   </Field>
-                ) : (
-                  <div className="hidden sm:block" />
                 )}
                 <Field label="Date d'inscription" error={errors.enrollmentDate}>
                   <DatePicker value={form.enrollmentDate} onChange={(d) => update({ enrollmentDate: d })} />

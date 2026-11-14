@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { primaryButtonClass, secondaryButtonClass } from "./shared";
 import { WelcomeStep } from "./steps/WelcomeStep";
+import { AppearanceStep } from "./steps/AppearanceStep";
 import { CentersStep } from "./steps/CentersStep";
 import { FormationsStep } from "./steps/FormationsStep";
 import { ClassesStep } from "./steps/ClassesStep";
@@ -222,11 +223,12 @@ export function OnboardingWizard() {
 
         <main key={step} className="animate-fade-in-up">
           {step === "welcome" && <WelcomeStep state={state} />}
+          {step === "appearance" && <AppearanceStep />}
           {step === "centers" && <CentersStep limits={state.limits} />}
           {step === "formations" && <FormationsStep />}
           {step === "classes" && <ClassesStep />}
           {step === "users" && <UsersStep />}
-          {step === "students" && <StudentsStep limits={state.limits} studentCount={state.counts.students} />}
+          {step === "students" && <StudentsStep limits={state.limits} studentCount={state.counts.activeStudents} />}
           {step === "summary" && <SummaryStep state={state} skippedSteps={skipped} />}
         </main>
       </div>

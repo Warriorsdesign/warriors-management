@@ -136,7 +136,7 @@ export function SubscriptionSettings() {
                     <span className="font-medium">{formatQuota(subscription.plan?.maxCenters || 0, usage.centers)}</span>
                   </li>
                   <li className="flex justify-between">
-                    <span className="text-muted-foreground">Apprenants :</span>
+                    <span className="text-muted-foreground" title="Les étudiants qui ont abandonné ou terminé leur formation ne comptent pas.">Apprenants actifs :</span>
                     <span className="font-medium">{formatQuota(subscription.plan?.maxStudents || 0, usage.students)}</span>
                   </li>
                 </ul>

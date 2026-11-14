@@ -9,6 +9,8 @@ import {
   type IntervalType,
 } from '@/lib/business/paymentSchedule';
 import { generateStudentMatriculesBatch } from '@/lib/business/matricule';
+import { INACTIVE_STATUSES } from '@/lib/business/classStatus';
+import { quotaMessage } from '@/lib/business/studentQuota';
 import {
   CellError,
   choiceLabels,
@@ -148,19 +150,19 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
       tx.classGroup.findMany({
         where: { organizationId: orgId, ...scope.classGroup() },
         select: {
-          id: true, name: true, capacity: true,
+          id: true, name: true, capacity: true, status: true,
           center: { select: { name: true } },
           formation: { select: { totalCost: true, hasLevels: true, levels: true } },
         },
       }),
-      tx.student.groupBy({ by: ['classId'], where: { organizationId: orgId }, _count: { _all: true } }),
+      tx.student.groupBy({ by: ['classId'], where: { organizationId: orgId, currentStatus: { notIn: INACTIVE_STATUSES } }, _count: { _all: true } }),
       // Toute l'organisation : les matricules sont uniques par organisation et le quota est global.
-      tx.student.findMany({ where: { organizationId: orgId }, select: { matricule: true, firstName: true, lastName: true, contact: true, classId: true } }),
+      tx.student.findMany({ where: { organizationId: orgId }, select: { matricule: true, firstName: true, lastName: true, contact: true, classId: true, currentStatus: true } }),
       tx.subscription.findUnique({ where: { organizationId: orgId }, select: { maxStudents: true, plan: { select: { name: true } } } }),
     ]);
 
     const classesByName = indexByName(classes, (c) => c.name, normalizeKey);
-    // Même règle que POST /api/students : la capacité compte tous les étudiants de la classe.
+    // Même règle que POST /api/students (assertClassHasRoom) : seuls les étudiants actifs occupent une place.
     const occupancy = new Map(classCounts.map((c) => [c.classId, c._count._all]));
     const existingMatricules = new Set(existingStudents.map((s) => normalizeKey(s.matricule)));
     // Doublons d'identité recherchés dans le périmètre uniquement, pour ne pas révéler les
@@ -259,13 +261,19 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
 
       if (r.hasErrors || !classGroup || !lastName || !firstName || !gender || !contact || !enrollmentDate) continue;
 
+      if (classGroup.status === 'cloturee') {
+        r.error(`La classe "${classGroup.name}" est clôturée : elle n'accepte plus d'étudiants.`, 'className');
+        continue;
+      }
       // Capacité : évaluée dans l'ordre du fichier, sur les seules lignes par ailleurs valides.
+      // Un étudiant importé directement comme abandonné ou diplômé n'occupe pas de place.
+      const takesSeat = !INACTIVE_STATUSES.includes(currentStatus);
       const occupied = occupancy.get(classGroup.id) ?? 0;
-      if (occupied >= classGroup.capacity) {
+      if (takesSeat && occupied >= classGroup.capacity) {
         r.error(`La classe "${classGroup.name}" est complète (capacité de ${classGroup.capacity} atteinte).`, 'className');
         continue;
       }
-      occupancy.set(classGroup.id, occupied + 1);
+      if (takesSeat) occupancy.set(classGroup.id, occupied + 1);
 
       valid.push({
         row: raw.row,
@@ -280,13 +288,16 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
     const fileErrors: string[] = [];
     if (!subscription) {
       fileErrors.push("Abonnement introuvable : contactez l'administrateur de Warriors Management.");
-    } else if (subscription.maxStudents !== -1 && existingStudents.length + valid.length > subscription.maxStudents) {
-      const remaining = Math.max(0, subscription.maxStudents - existingStudents.length);
-      fileErrors.push(
-        `Quota atteint. Votre plan actuel (${subscription.plan?.name || 'Essai'}) est limité à ${subscription.maxStudents} étudiant(s) : ` +
-          `vous pouvez encore en ajouter ${remaining}, le fichier en contient ${valid.length} valide(s). ` +
-          "Réduisez le fichier ou contactez l'administrateur de Warriors Management via admin@warriors-management.com pour passer à un plan supérieur."
-      );
+    } else if (subscription.maxStudents !== -1) {
+      // Quota : seuls les étudiants actifs comptent, déjà en base comme dans le fichier.
+      const activeExisting = existingStudents.filter((s) => !INACTIVE_STATUSES.includes(s.currentStatus)).length;
+      const activeInFile = valid.filter((v) => !INACTIVE_STATUSES.includes(v.data.currentStatus)).length;
+      if (activeExisting + activeInFile > subscription.maxStudents) {
+        const remaining = Math.max(0, subscription.maxStudents - activeExisting);
+        fileErrors.push(
+          quotaMessage(subscription.plan?.name, subscription.maxStudents, ` : vous pouvez encore en ajouter ${remaining}, le fichier en contient ${activeInFile} actif(s). Réduisez le fichier`)
+        );
+      }
     }
 
     return { valid, issues, fileErrors, warnings: [] };

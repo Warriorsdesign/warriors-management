@@ -4,13 +4,17 @@ import bcrypt from 'bcryptjs';
 import { subscriptionService } from '@/lib/services/subscription.service';
 import { isOnboardingRequired, PASSWORD_CHANGE_PAGE, setAuthCookie } from '@/lib/auth/session';
 import { getAccessBlock } from '@/lib/business/subscriptionAccess';
+import { clientIp, loginThrottleResponse, recordLoginFailure } from '@/lib/auth/loginThrottle';
 
 export async function POST(request: Request) {
   try {
     // Vérification et suspension paresseuse des abonnements expirés (sans bloquer la requête)
     subscriptionService.checkAndSuspendExpiredOrgs().catch(console.error);
 
-    const { matricule, password } = await request.json();
+    const body = await request.json();
+    const matricule = typeof body.matricule === 'string' ? body.matricule.trim() : body.matricule;
+    const password = body.password;
+    const ip = clientIp(request);
 
     if (!matricule || !password) {
       return NextResponse.json(
@@ -24,7 +28,12 @@ export async function POST(request: Request) {
       where: { matricule },
     });
 
+    // Trop d'échecs récents sur ce matricule ou depuis cette connexion : refus avant tout contrôle.
+    const throttled = await loginThrottleResponse(matricule, ip, user?.lastLoginAt);
+    if (throttled) return throttled;
+
     if (!user) {
+      await recordLoginFailure(matricule, ip);
       return NextResponse.json(
         { error: 'Matricule ou mot de passe incorrect.' },
         { status: 401 }
@@ -35,6 +44,7 @@ export async function POST(request: Request) {
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
+      await recordLoginFailure(matricule, ip, user.id);
       return NextResponse.json(
         { error: 'Matricule ou mot de passe incorrect.' },
         { status: 401 }

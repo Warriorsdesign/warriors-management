@@ -4,6 +4,7 @@ import React from "react";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { Modal } from "@/components/ui/modal";
 import { AlertTriangle, Mail } from "lucide-react";
+import { CONTACT, whatsappLink } from "@/lib/config/contact";
 
 export function GlobalErrorModal() {
   const { errorModal, hideErrorModal } = useUIStore();
@@ -28,7 +29,7 @@ export function GlobalErrorModal() {
           <Mail className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-orange-800">
             <span className="font-semibold block mb-1">Besoin d'aide ?</span>
-            Contactez l'administrateur de Warriors Management via <a href="mailto:admin@warriors-management.com" className="font-semibold hover:underline">admin@warriors-management.com</a> pour régulariser votre compte.
+            Contactez-nous par email à <a href={`mailto:${CONTACT.email}`} className="font-semibold hover:underline">{CONTACT.email}</a> ou sur WhatsApp au <a href={whatsappLink("Bonjour, j'ai besoin d'aide pour mon compte Warriors Management.")} target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">{CONTACT.whatsappDisplay}</a> pour régulariser votre compte.
           </div>
         </div>
 

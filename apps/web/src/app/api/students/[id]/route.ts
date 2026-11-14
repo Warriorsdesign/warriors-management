@@ -3,6 +3,8 @@ import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { updateStudentSchema } from '@/lib/validation/students';
 import { redactStudentFinance } from '@/lib/business/studentFinance';
+import { assertCanMoveToClass } from '@/lib/business/studentClass';
+import { withLiveStatus } from '@/lib/business/paymentSchedule';
 
 type Params = { id: string };
 
@@ -19,7 +21,8 @@ export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, perms, 
       },
     })
   );
-  return NextResponse.json({ ...student, ...redactStudentFinance(schedules[0] ?? null, payments, level) });
+  const schedule = schedules[0] ? withLiveStatus(schedules[0]) : null;
+  return NextResponse.json({ ...student, ...redactStudentFinance(schedule, payments, level) });
 }, { permission: { resource: 'students', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
@@ -28,11 +31,12 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params
     tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
   );
   // Changement de classe via PATCH : la classe cible doit aussi être dans le périmètre.
-  if (body.classId) {
-    await findOrgScopedOrThrow(
-      () => tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId, ...scope.classGroup() }, select: { id: true } }),
+  if (body.classId && body.classId !== student.classId) {
+    const target = await findOrgScopedOrThrow(
+      () => tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId, ...scope.classGroup() } }),
       'Classe introuvable.'
     );
+    await assertCanMoveToClass(tx, student, target);
   }
   const { email, enrollmentDate, ...rest } = body;
   const updated = await tx.student.update({
