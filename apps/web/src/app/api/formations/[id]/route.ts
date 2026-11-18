@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
