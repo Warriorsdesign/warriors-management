@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Développement local
 
-## Getting Started
+Prérequis : Node.js, npm et PostgreSQL installé et démarré.
 
-First, run the development server:
+Depuis `apps/web`, configurez la base et appliquez le schéma :
 
 ```bash
+npm install
+npm run db:setup:local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Le script demande l'autorisation `sudo` pour créer les rôles PostgreSQL et la base
+`warriors_management`. Il refuse d'utiliser une base ou des rôles préexistants si
+le `.env` local ne contient pas déjà leurs identifiants correspondants. Les URL de
+connexion et une nouvelle clé JWT sont écrites dans `.env` avec des permissions
+réservées à l'utilisateur courant.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Le schéma de référence reste `prisma/schema.prisma`. Les scripts SQL historiques
+dans `prisma/migrations-sql/` sont conservés; sur une base locale neuve, le script
+applique le schéma Prisma courant puis configure les politiques RLS.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Pour héberger la base sur Neon ultérieurement, remplacez uniquement `DATABASE_URL`
+par l'URL de connexion applicative et `DIRECT_URL` par l'URL directe de migration
+et d'administration. Le code Prisma et le schéma restent inchangés.
 
-## Learn More
+## Commandes utiles
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run db:push` : synchronise le schéma Prisma vers la base configurée.
+- `npm run db:seed:plans` : insère ou met à jour les forfaits initiaux.
+- `npm run dev` : démarre l'application sur http://localhost:3000.
