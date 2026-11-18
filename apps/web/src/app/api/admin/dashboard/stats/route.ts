@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { metricsService } from '@/lib/services/metrics.service';

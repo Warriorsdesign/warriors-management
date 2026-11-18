@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { withApiRoute } from '@/lib/api/handler';
