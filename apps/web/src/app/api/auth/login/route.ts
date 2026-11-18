@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Utilisation de adminPrisma (qui fonctionne) au lieu de authPrisma pour contourner le timeout de Supavisor
+    // Login has no organization context yet, so the server-only admin client performs this global lookup.
     const user = await adminPrisma.user.findUnique({
       where: { matricule },
     });

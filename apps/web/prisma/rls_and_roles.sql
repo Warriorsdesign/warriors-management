@@ -1,25 +1,14 @@
--- Warriors Management - RLS & rôles applicatifs (voir /backend.md)
+-- Warriors Management - PostgreSQL RLS & rôle applicatif (voir /backend.md)
 -- Idempotent: peut être ré-exécuté sans erreur.
 
--- 1. Rôles PostgreSQL applicatifs (LOGIN, sans BYPASSRLS, sans privilège DDL)
---    Le rôle `postgres` (utilisé pour les migrations Prisma via DIRECT_URL) a BYPASSRLS
---    et ne doit donc JAMAIS être utilisé par l'application au runtime (cf. backend.md §3).
+-- 1. Rôle PostgreSQL applicatif (LOGIN, sans BYPASSRLS, sans privilège DDL).
+--    Remplacer __APP_USER_PW__ par le mot de passe de DATABASE_URL avant exécution.
 DO $$
 BEGIN
-  -- Note: ALTER ROLE ... (NO)SUPERUSER requires the invoker to itself be a superuser
-  -- in PostgreSQL, even to explicitly set NOSUPERUSER. `postgres` here is not a true
-  -- superuser (Supabase-managed), so SUPERUSER is only set at CREATE time (default:
-  -- NOSUPERUSER) and left untouched on subsequent ALTERs.
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_user') THEN
     CREATE ROLE app_user LOGIN PASSWORD '__APP_USER_PW__' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
   ELSE
     ALTER ROLE app_user WITH LOGIN PASSWORD '__APP_USER_PW__' NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
-  END IF;
-
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_auth') THEN
-    CREATE ROLE app_auth LOGIN PASSWORD '__APP_AUTH_PW__' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
-  ELSE
-    ALTER ROLE app_auth WITH LOGIN PASSWORD '__APP_AUTH_PW__' NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
   END IF;
 END
 $$;
@@ -141,18 +130,9 @@ CREATE POLICY tenant_isolation_formationcenters ON "_FormationCenters"
   WITH CHECK (EXISTS (SELECT 1 FROM "Center" c WHERE c."id" = "_FormationCenters"."A" AND c."organizationId" = current_setting('app.org_id', true))
      AND EXISTS (SELECT 1 FROM "Formation" f WHERE f."id" = "_FormationCenters"."B" AND f."organizationId" = current_setting('app.org_id', true)));
 
--- 4. Politique dédiée à `app_auth` (lookup par email au login, avant que l'org soit connue).
---    Lecture seule, restreinte à la table User.
-DROP POLICY IF EXISTS auth_read_user ON "User";
-CREATE POLICY auth_read_user ON "User"
-  FOR SELECT TO app_auth
-  USING (true);
-
--- 5. Attribution des permissions.
-GRANT USAGE ON SCHEMA public TO app_user, app_auth;
+-- 4. Attribution des permissions au rôle applicatif.
+GRANT USAGE ON SCHEMA public TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
-GRANT SELECT ON "User" TO app_auth;
 
--- IMPORTANT: `postgres` (BYPASSRLS) reste réservé aux migrations Prisma (DIRECT_URL, port 5432).
--- Le runtime applicatif (Prisma Client / basePrisma) doit utiliser DATABASE_URL = app_user
--- et authPrisma doit utiliser AUTH_DATABASE_URL = app_auth (voir backend.md §5-6).
+-- DATABASE_URL utilise app_user. DIRECT_URL utilise un rôle d'administration séparé,
+-- nécessaire aux migrations et aux opérations globales du Back-Office.

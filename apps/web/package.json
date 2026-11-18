@@ -8,13 +8,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "db:setup:local": "node scripts/setup-local-postgres.mjs",
+    "db:push": "prisma db push",
+    "db:seed:plans": "node src/scripts/seed-plans.mjs",
     "postinstall": "prisma skills sync || exit 0",
     "contract:emit": "prisma contract emit"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
-    "@supabase/ssr": "^0.12.5",
-    "@supabase/supabase-js": "^2.112.4",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

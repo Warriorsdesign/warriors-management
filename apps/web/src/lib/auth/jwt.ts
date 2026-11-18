@@ -1,20 +1,19 @@
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
 const getSecret = () => {
-  const secret = process.env.SUPABASE_JWT_SECRET;
+  const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error("SUPABASE_JWT_SECRET environment variable is missing.");
+    throw new Error("JWT_SECRET environment variable is missing.");
   }
   return new TextEncoder().encode(secret);
 };
 
-export interface TokenPayload {
+export interface TokenPayload extends JWTPayload {
   userId: string;
   orgId: string;
   roles: string[];
   /** Mot de passe provisoire : le middleware n'autorise que la page de changement de mot de passe. */
   mustChangePassword?: boolean;
-  [key: string]: any;
 }
 
 export async function signToken(payload: TokenPayload): Promise<string> {
@@ -30,11 +29,10 @@ export async function verifyToken(token: string): Promise<TokenPayload> {
   return payload as unknown as TokenPayload;
 }
 
-export interface AdminTokenPayload {
+export interface AdminTokenPayload extends JWTPayload {
   userId: string;
   email: string;
   isSuperAdmin: boolean;
-  [key: string]: any;
 }
 
 export async function signAdminToken(payload: AdminTokenPayload): Promise<string> {
@@ -49,4 +47,3 @@ export async function verifyAdminToken(token: string): Promise<AdminTokenPayload
   const { payload } = await jwtVerify(token, getSecret());
   return payload as unknown as AdminTokenPayload;
 }
-

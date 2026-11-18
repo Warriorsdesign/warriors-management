@@ -28,8 +28,7 @@ export async function withTenantContext<T>(
   }
 
   return await basePrisma.$transaction(async (tx) => {
-    // Inject the organization ID into the Postgres session for Row Level Security
-    // Utilisation de true pour 'is_local' : le paramètre est valide uniquement pour la durée de la transaction.
+    // Keep the organization context local to this transaction for PostgreSQL RLS.
     await tx.$executeRawUnsafe(`SELECT set_config('app.org_id', $1, true)`, orgId);
 
     // Execute the callback with the transaction object
@@ -37,9 +36,7 @@ export async function withTenantContext<T>(
 
     return result;
   }, {
-    // Le pooler Supabase (Supavisor) présente occasionnellement de la latence/flakiness
-    // sur l'acquisition de connexion ; les timeouts par défaut de Prisma (maxWait 2s,
-    // timeout 5s) sont trop stricts pour cet environnement.
+    // Allow time for local PostgreSQL and hosted connection pools to acquire a connection.
     maxWait: 10000,
     // Surchargeable pour les traitements de masse (import Excel).
     timeout: options?.timeout ?? 15000,
