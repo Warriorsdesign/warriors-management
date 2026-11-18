@@ -1,0 +1,46 @@
+import { NextResponse } from 'next/server';
+import { withApiRoute } from '@/lib/api/handler';
+import { ROLES } from '@/lib/auth/roles';
+import { createCenterSchema } from '@/lib/validation/centers';
+import { ApiError } from '@/lib/api/errors';
+import { CONTACT } from '@/lib/config/contact';
+import { assertCenterNameAvailable, lockCenterCreation } from '@/lib/business/centers';
+
+export const GET = withApiRoute(async (_req, { tx, orgId, scope }) => {
+  const centers = await tx.center.findMany({
+    where: { organizationId: orgId, ...scope.center() },
+    orderBy: { name: 'asc' },
+  });
+  return NextResponse.json({ data: centers });
+}, { permission: { resource: 'centers', action: 'read' } });
+
+export const POST = withApiRoute(async (req, { tx, orgId }) => {
+  const body = createCenterSchema.parse(await req.json());
+  await lockCenterCreation(tx, orgId);
+  await assertCenterNameAvailable(tx, orgId, body.name);
+
+  const sub = await tx.subscription.findUnique({
+    where: { organizationId: orgId },
+    select: { maxCenters: true, plan: true },
+  });
+
+  if (!sub) {
+    throw new ApiError(400, 'Abonnement introuvable.', 'SUBSCRIPTION_NOT_FOUND');
+  }
+
+  const centersCount = await tx.center.count({
+    where: { organizationId: orgId },
+  });
+
+  if (sub.maxCenters !== -1 && centersCount >= sub.maxCenters) {
+    throw new ApiError(
+      403,
+      `Quota atteint. Votre plan actuel (${sub.plan?.name || 'Essai'}) est limité à ${sub.maxCenters} centre(s). Pour passer à un forfait supérieur, contactez-nous : ${CONTACT.email} ou WhatsApp ${CONTACT.whatsappDisplay}.`,
+      'QUOTA_EXCEEDED'
+    );
+  }
+
+  const center = await tx.center.create({ data: { ...body, organizationId: orgId } });
+  return NextResponse.json(center, { status: 201 });
+// Seuls les administrateurs de l'organisation créent des centres (ils définissent le périmètre des utilisateurs).
+}, { allowedRoles: [ROLES.ADMIN], permission: { resource: 'centers', action: 'write' } });

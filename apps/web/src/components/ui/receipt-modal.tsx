@@ -2,33 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
-import { Student } from '@/lib/data/mockData';
+
+interface ReceiptStudent {
+  firstName: string;
+  lastName: string;
+  matricule: string;
+  contact: string;
+  email?: string | null;
+}
 
 interface ReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  student: Student;
+  student: ReceiptStudent;
   payment?: {
     id: string;
     date: string;
     amount: number;
     method: string;
-    motif?: string;
+    motif?: string | null;
   };
   payments?: {
     id: string;
     date: string;
     amount: number;
     method: string;
-    motif?: string;
+    motif?: string | null;
   }[];
   organization?: {
     id: string;
     name: string;
-    logoUrl?: string;
-    email?: string;
-    phone?: string;
-    address?: string;
+    logoUrl?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
   };
 }
 

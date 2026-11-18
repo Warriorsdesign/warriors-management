@@ -34,3 +34,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+node_modules/
+dist/
+.env
+
+# Identifiants des environnements (ne jamais versionner)
+.env.cloud
+.env.*
+!.env.example
