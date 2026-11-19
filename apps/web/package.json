@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "prebuild": "prisma generate",
     "db:setup:local": "node scripts/setup-local-postgres.mjs",
     "db:push": "prisma db push",
     "db:seed:plans": "node src/scripts/seed-plans.mjs",
