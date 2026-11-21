@@ -158,7 +158,7 @@ export type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number];
 /**
  * Réglages d'origine des rôles système. Chaque organisation en reçoit une copie qu'elle peut
  * adapter ; "Rétablir les réglages d'origine" recopie ces valeurs.
- * À garder synchronisé avec prisma/migrations-sql/2026-09-role-permissions.sql.
+ * À garder synchronisé avec les migrations SQL du catalogue de permissions.
  */
 export const SYSTEM_ROLE_TEMPLATES: Record<SystemRoleKey, { description: string; grants: PartialPermissionGrants }> = {
   GESTIONNAIRE: {

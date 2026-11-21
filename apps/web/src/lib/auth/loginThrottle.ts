@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { adminPrisma } from '@/lib/db/admin';
+import { and, count, eq, gte, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { auditLogs } from '@/lib/db/schema';
 
 /**
  * Limite des tentatives de connexion (essais de mots de passe en rafale). Les échecs sont tracés
@@ -23,11 +25,17 @@ export async function loginThrottleResponse(identifier: string, ip: string, last
   const windowStart = new Date(Date.now() - WINDOW_MS);
   const accountSince = lastSuccessAt && lastSuccessAt > windowStart ? lastSuccessAt : windowStart;
   const [accountFailures, ipFailures] = await Promise.all([
-    adminPrisma.auditLog.count({
-      where: { action: ACTION, createdAt: { gte: accountSince }, details: { path: ['identifier'], equals: identifier } },
-    }),
+    db.select({ count: count() }).from(auditLogs).where(and(
+      eq(auditLogs.action, ACTION),
+      gte(auditLogs.createdAt, accountSince),
+      sql`${auditLogs.details}->>'identifier' = ${identifier}`,
+    )).then(([row]) => row?.count ?? 0),
     ip
-      ? adminPrisma.auditLog.count({ where: { action: ACTION, createdAt: { gte: windowStart }, details: { path: ['ip'], equals: ip } } })
+      ? db.select({ count: count() }).from(auditLogs).where(and(
+          eq(auditLogs.action, ACTION),
+          gte(auditLogs.createdAt, windowStart),
+          sql`${auditLogs.details}->>'ip' = ${ip}`,
+        )).then(([row]) => row?.count ?? 0)
       : Promise.resolve(0),
   ]);
   if (accountFailures < MAX_FAILURES_PER_ACCOUNT && ipFailures < MAX_FAILURES_PER_IP) return null;
@@ -41,9 +49,7 @@ export async function loginThrottleResponse(identifier: string, ip: string, last
 }
 
 export async function recordLoginFailure(identifier: string, ip: string, userId?: string) {
-  await adminPrisma.auditLog
-    .create({
-      data: {
+  await db.insert(auditLogs).values({
         actorId: userId ?? 'anonymous',
         actorEmail: identifier,
         actorName: 'Tentative de connexion',
@@ -51,7 +57,6 @@ export async function recordLoginFailure(identifier: string, ip: string, userId?
         resource: 'Security',
         resourceId: userId ?? null,
         details: { identifier, ip },
-      },
-    })
+      })
     .catch(() => undefined);
 }

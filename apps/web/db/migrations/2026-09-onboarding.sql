@@ -1,6 +1,6 @@
 -- Warriors Management - Onboarding du premier administrateur
--- Idempotent : peut être ré-exécuté sans erreur. À exécuter avec le rôle de migration
--- (DIRECT_URL) AVANT de déployer le code qui lit ces colonnes.
+-- Idempotent : peut être ré-exécuté sans erreur. À exécuter avec warriors_admin
+-- sur l'endpoint direct AVANT de déployer le code qui lit ces colonnes.
 --
 -- Ajouts uniquement : aucune colonne supprimée, aucune donnée existante altérée
 -- en dehors de la reprise ponctuelle de "onboardingStatus" ci-dessous.

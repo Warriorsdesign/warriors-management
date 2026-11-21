@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import type { Prisma } from '@prisma/client';
+import { and, asc, count, eq, inArray, notInArray } from 'drizzle-orm';
+import { classGroups, centers as centersTable, formations, paymentSchedules, payments as paymentsTable, students as studentsTable, subscriptions, plans } from '@/lib/db/schema';
 import type { ImportRowIssue } from '@/lib/api/types';
 import type { PaymentMethod, StudentStatus } from '@/lib/types/enums';
 import {
@@ -104,7 +105,7 @@ function identityKey(lastName: string, firstName: string, contact: string): stri
   return `${normalizeKey(lastName)}|${normalizeKey(firstName)}|${digits}`;
 }
 
-function levelsOf(value: Prisma.JsonValue): { id: string; name: string }[] {
+function levelsOf(value: unknown): { id: string; name: string }[] {
   return Array.isArray(value) ? (value as unknown as { id: string; name: string }[]) : [];
 }
 
@@ -127,8 +128,14 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
 
   async loadTemplateLists({ tx, orgId, scope }) {
     const [classes, centers] = await Promise.all([
-      tx.classGroup.findMany({ where: { organizationId: orgId, ...scope.classGroup() }, select: { name: true }, orderBy: { name: 'asc' } }),
-      tx.center.findMany({ where: { organizationId: orgId, ...scope.center() }, select: { name: true }, orderBy: { name: 'asc' } }),
+      tx.select({ name: classGroups.name }).from(classGroups).where(and(
+        eq(classGroups.organizationId, orgId),
+        ...(scope.centerIds ? [inArray(classGroups.centerId, scope.centerIds)] : []),
+      )).orderBy(asc(classGroups.name)),
+      tx.select({ name: centersTable.name }).from(centersTable).where(and(
+        eq(centersTable.organizationId, orgId),
+        ...(scope.centerIds ? [inArray(centersTable.id, scope.centerIds)] : []),
+      )).orderBy(asc(centersTable.name)),
     ]);
     return {
       genders: ['M', 'F'],
@@ -147,23 +154,39 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
 
     const [classes, classCounts, existingStudents, subscription] = await Promise.all([
       // Seules les classes du périmètre de l'utilisateur sont utilisables comme référence.
-      tx.classGroup.findMany({
-        where: { organizationId: orgId, ...scope.classGroup() },
-        select: {
-          id: true, name: true, capacity: true, status: true,
-          center: { select: { name: true } },
-          formation: { select: { totalCost: true, hasLevels: true, levels: true } },
-        },
-      }),
-      tx.student.groupBy({ by: ['classId'], where: { organizationId: orgId, currentStatus: { notIn: INACTIVE_STATUSES } }, _count: { _all: true } }),
+      tx.select({
+        id: classGroups.id, name: classGroups.name, capacity: classGroups.capacity, status: classGroups.status,
+        centerName: centersTable.name, totalCost: formations.totalCost,
+        hasLevels: formations.hasLevels, levels: formations.levels,
+      }).from(classGroups)
+        .innerJoin(centersTable, eq(centersTable.id, classGroups.centerId))
+        .innerJoin(formations, eq(formations.id, classGroups.formationId))
+        .where(and(
+          eq(classGroups.organizationId, orgId),
+          ...(scope.centerIds ? [inArray(classGroups.centerId, scope.centerIds)] : []),
+        )).then((rows) => rows.map(({ centerName, totalCost, hasLevels, levels, ...row }) => ({
+          ...row,
+          center: { name: centerName },
+          formation: { totalCost, hasLevels, levels },
+        }))),
+      tx.select({ classId: studentsTable.classId, count: count() }).from(studentsTable)
+        .where(and(
+          eq(studentsTable.organizationId, orgId),
+          notInArray(studentsTable.currentStatus, INACTIVE_STATUSES),
+        )).groupBy(studentsTable.classId),
       // Toute l'organisation : les matricules sont uniques par organisation et le quota est global.
-      tx.student.findMany({ where: { organizationId: orgId }, select: { matricule: true, firstName: true, lastName: true, contact: true, classId: true, currentStatus: true } }),
-      tx.subscription.findUnique({ where: { organizationId: orgId }, select: { maxStudents: true, plan: { select: { name: true } } } }),
+      tx.select({
+        matricule: studentsTable.matricule, firstName: studentsTable.firstName, lastName: studentsTable.lastName,
+        contact: studentsTable.contact, classId: studentsTable.classId, currentStatus: studentsTable.currentStatus,
+      }).from(studentsTable).where(eq(studentsTable.organizationId, orgId)),
+      tx.select({ maxStudents: subscriptions.maxStudents, planName: plans.name }).from(subscriptions)
+        .leftJoin(plans, eq(plans.id, subscriptions.planId))
+        .where(eq(subscriptions.organizationId, orgId)).limit(1).then(([row]) => row ?? null),
     ]);
 
     const classesByName = indexByName(classes, (c) => c.name, normalizeKey);
     // Même règle que POST /api/students (assertClassHasRoom) : seuls les étudiants actifs occupent une place.
-    const occupancy = new Map(classCounts.map((c) => [c.classId, c._count._all]));
+    const occupancy = new Map(classCounts.map((c) => [c.classId, Number(c.count)]));
     const existingMatricules = new Set(existingStudents.map((s) => normalizeKey(s.matricule)));
     // Doublons d'identité recherchés dans le périmètre uniquement, pour ne pas révéler les
     // étudiants des autres centres.
@@ -295,7 +318,7 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
       if (activeExisting + activeInFile > subscription.maxStudents) {
         const remaining = Math.max(0, subscription.maxStudents - activeExisting);
         fileErrors.push(
-          quotaMessage(subscription.plan?.name, subscription.maxStudents, ` : vous pouvez encore en ajouter ${remaining}, le fichier en contient ${activeInFile} actif(s). Réduisez le fichier`)
+          quotaMessage(subscription.planName, subscription.maxStudents, ` : vous pouvez encore en ajouter ${remaining}, le fichier en contient ${activeInFile} actif(s). Réduisez le fichier`)
         );
       }
     }
@@ -304,19 +327,20 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
   },
 
   async commit(rows, { tx, orgId, userId }) {
-    const existing = await tx.student.findMany({ where: { organizationId: orgId }, select: { matricule: true } });
+    const existing = await tx.select({ matricule: studentsTable.matricule }).from(studentsTable)
+      .where(eq(studentsTable.organizationId, orgId));
     const taken = new Set(existing.map((s) => s.matricule));
     rows.forEach(({ data }) => data.matricule && taken.add(data.matricule));
     const generated = generateStudentMatriculesBatch(taken, rows.filter(({ data }) => !data.matricule).length);
 
     const now = new Date();
-    const students: Prisma.StudentCreateManyInput[] = [];
-    const schedules: Prisma.PaymentScheduleCreateManyInput[] = [];
-    const payments: Prisma.PaymentCreateManyInput[] = [];
+    const studentRows: (typeof studentsTable.$inferInsert)[] = [];
+    const scheduleRows: (typeof paymentSchedules.$inferInsert)[] = [];
+    const paymentRows: (typeof paymentsTable.$inferInsert)[] = [];
 
     for (const { data } of rows) {
       const studentId = randomUUID();
-      students.push({
+      studentRows.push({
         id: studentId,
         matricule: data.matricule ?? generated.pop()!,
         firstName: data.firstName,
@@ -333,7 +357,7 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
 
       // Paiements repris à la date d'inscription (et non à la date d'import) pour ne pas
       // gonfler artificiellement les encaissements du mois courant dans les rapports.
-      const studentPayments: Prisma.PaymentCreateManyInput[] = [];
+      const studentPayments: (typeof paymentsTable.$inferInsert)[] = [];
       if (data.registrationFee > 0) {
         studentPayments.push({
           studentId, organizationId: orgId, amount: data.registrationFee, date: data.enrollmentDate,
@@ -346,7 +370,7 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
           method: data.paymentMethod, motif: 'Reprise de solde (import)', recordedById: userId,
         });
       }
-      payments.push(...studentPayments);
+      paymentRows.push(...studentPayments);
 
       // Même calcul que rebuildScheduleForStudent (plan de base + rejeu des paiements), fait en
       // mémoire pour éviter 3 requêtes par étudiant.
@@ -364,7 +388,7 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
         installments = applyPaymentToInstallments(installments, payment.amount, now);
       }
       const totals = computeScheduleTotals(installments, data.totalCost);
-      schedules.push({
+      scheduleRows.push({
         studentId,
         organizationId: orgId,
         totalAmount: data.totalCost,
@@ -374,13 +398,13 @@ export const studentsImport: ImportDefinition<StudentImportRow> = {
         registrationFee: data.registrationFee,
         installmentsCount: data.installmentsCount,
         installmentInterval: data.installmentInterval,
-        installments: installments as unknown as Prisma.InputJsonValue,
+        installments,
       });
     }
 
-    for (const batch of chunk(students, 500)) await tx.student.createMany({ data: batch });
-    for (const batch of chunk(schedules, 500)) await tx.paymentSchedule.createMany({ data: batch });
-    for (const batch of chunk(payments, 500)) await tx.payment.createMany({ data: batch });
+    for (const batch of chunk(studentRows, 500)) await tx.insert(studentsTable).values(batch);
+    for (const batch of chunk(scheduleRows, 500)) await tx.insert(paymentSchedules).values(batch);
+    for (const batch of chunk(paymentRows, 500)) await tx.insert(paymentsTable).values(batch);
 
     return rows.length;
   },

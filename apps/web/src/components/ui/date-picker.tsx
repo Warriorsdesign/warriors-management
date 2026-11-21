@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Calendar as CalendarIcon, X } from 'lucide-react';
 import { format, addMonths, subMonths, addYears, subYears, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, startOfDay } from 'date-fns';
+import type { Locale } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -9,7 +10,7 @@ interface DatePickerProps {
   onChange: (date: Date | undefined) => void;
   placeholder?: string;
   className?: string;
-  locale?: any;
+  locale?: Locale;
   disablePastDates?: boolean;
   minDate?: Date;
   align?: 'left' | 'right';
@@ -186,7 +187,7 @@ export function DatePicker({
               onClick={goToToday}
               className="text-primary font-medium hover:opacity-80 transition-colors focus:outline-none"
             >
-              Aujourd'hui
+              Aujourd’hui
             </button>
           </div>
         </div>

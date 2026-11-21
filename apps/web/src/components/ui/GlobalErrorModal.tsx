@@ -28,7 +28,7 @@ export function GlobalErrorModal() {
         <div className="bg-orange-50/50 p-4 rounded-lg border border-orange-100 flex items-start gap-3 text-left">
           <Mail className="w-5 h-5 text-orange-500 mt-0.5 flex-shrink-0" />
           <div className="text-sm text-orange-800">
-            <span className="font-semibold block mb-1">Besoin d'aide ?</span>
+            <span className="font-semibold block mb-1">Besoin d’aide ?</span>
             Contactez-nous par email à <a href={`mailto:${CONTACT.email}`} className="font-semibold hover:underline">{CONTACT.email}</a> ou sur WhatsApp au <a href={whatsappLink("Bonjour, j'ai besoin d'aide pour mon compte Warriors Management.")} target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">{CONTACT.whatsappDisplay}</a> pour régulariser votre compte.
           </div>
         </div>

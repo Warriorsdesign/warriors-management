@@ -1,4 +1,5 @@
-import { adminPrisma } from '@/lib/db/admin';
+import { db } from '@/lib/db';
+import { auditLogs } from '@/lib/db/schema';
 
 export interface LogAuditParams {
   actorId: string;
@@ -7,7 +8,7 @@ export interface LogAuditParams {
   action: string;
   resource: string;
   resourceId?: string | null;
-  details?: any;
+  details?: unknown;
 }
 
 /**
@@ -16,8 +17,7 @@ export interface LogAuditParams {
  */
 export async function logAuditEvent(params: LogAuditParams): Promise<void> {
   try {
-    await adminPrisma.auditLog.create({
-      data: {
+    await db.insert(auditLogs).values({
         actorId: params.actorId,
         actorEmail: params.actorEmail,
         actorName: params.actorName,
@@ -25,7 +25,6 @@ export async function logAuditEvent(params: LogAuditParams): Promise<void> {
         resource: params.resource,
         resourceId: params.resourceId ?? null,
         details: params.details ?? undefined,
-      },
     });
   } catch (error) {
     console.error('Failed to record audit log:', error);

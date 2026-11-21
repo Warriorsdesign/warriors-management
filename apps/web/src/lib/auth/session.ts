@@ -1,5 +1,7 @@
 import type { NextResponse } from 'next/server';
-import type { TenantClient } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { organizations } from '@/lib/db/schema';
 import { hasPermission } from './permissions';
 import { signToken, type TokenPayload } from './jwt';
 
@@ -24,7 +26,8 @@ export async function setAuthCookie(response: NextResponse, payload: TokenPayloa
  * uniquement aux utilisateurs habilités à configurer l'organisation.
  */
 export async function isOnboardingRequired(client: TenantClient, orgId: string, roles: string[]): Promise<boolean> {
-  const org = await client.organization.findUnique({ where: { id: orgId }, select: { onboardingStatus: true } });
+  const [org] = await client.select({ onboardingStatus: organizations.onboardingStatus }).from(organizations)
+    .where(eq(organizations.id, orgId)).limit(1);
   if (!org || org.onboardingStatus === 'termine') return false;
   return hasPermission(client, orgId, roles, 'organization', 'write');
 }

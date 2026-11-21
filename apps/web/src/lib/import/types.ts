@@ -1,4 +1,4 @@
-import type { TenantClient } from '@/lib/db';
+import type { TenantClient } from '@/lib/db-types';
 import type { CenterScope } from '@/lib/auth/centerScope';
 import type { PermissionSet } from '@/lib/auth/permissions';
 import type { ImportRowIssue, ImportType } from '@/lib/api/types';

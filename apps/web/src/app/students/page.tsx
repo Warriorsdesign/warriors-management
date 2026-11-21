@@ -556,7 +556,7 @@ export default function StudentsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-primary font-medium text-sm pb-2 border-b border-border">
               <CheckCircle2 className="w-4 h-4" />
-              Détails de l'inscription
+              Détails de l’inscription
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -624,7 +624,7 @@ export default function StudentsPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Date d'inscription</label>
+                <label className="text-xs font-medium text-muted-foreground">Date d’inscription</label>
                 <DatePicker
                   disablePastDates={!editingStudent}
                   value={formData.enrollmentDate ? new Date(formData.enrollmentDate) : undefined}
@@ -648,7 +648,7 @@ export default function StudentsPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Frais d'inscription (1er paiement)</label>
+                      <label className="text-xs font-medium text-muted-foreground">Frais d’inscription (1er paiement)</label>
                       <div className="relative">
                         <input
                           type="number"
@@ -686,7 +686,7 @@ export default function StudentsPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">Nombre d'échéances</label>
+                      <label className="text-xs font-medium text-muted-foreground">Nombre d’échéances</label>
                       <input
                         type="number"
                         value={formData.installmentsCount}

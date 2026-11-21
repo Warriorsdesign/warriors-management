@@ -124,7 +124,7 @@ export default function CentersPage() {
         {!isLoading && centers.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucun centre</h3>
-            <p className="text-sm text-muted-foreground">Il n'y a actuellement aucun centre enregistré.</p>
+            <p className="text-sm text-muted-foreground">Il n&apos;y a actuellement aucun centre enregistré.</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-24 min-h-[250px]">

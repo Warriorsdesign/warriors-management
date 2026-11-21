@@ -1,5 +1,7 @@
 import { addWeeks, addMonths } from 'date-fns';
-import type { TenantClient } from '@/lib/db';
+import { and, asc, eq, ne, sum } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { payments, paymentSchedules, students } from '@/lib/db/schema';
 import { ApiError } from '@/lib/api/errors';
 
 export type IntervalType =
@@ -160,13 +162,15 @@ export async function assertPaymentFits(
   amount: number,
   excludePaymentId?: string
 ): Promise<void> {
-  const schedule = await tx.paymentSchedule.findFirst({ where: { studentId, organizationId: orgId }, select: { totalAmount: true } });
+  const [schedule] = await tx.select({ totalAmount: paymentSchedules.totalAmount }).from(paymentSchedules)
+    .where(and(eq(paymentSchedules.studentId, studentId), eq(paymentSchedules.organizationId, orgId))).limit(1);
   if (!schedule) return;
-  const paid = await tx.payment.aggregate({
-    where: { studentId, organizationId: orgId, ...(excludePaymentId ? { id: { not: excludePaymentId } } : {}) },
-    _sum: { amount: true },
-  });
-  const remaining = Math.max(0, schedule.totalAmount - (paid._sum.amount ?? 0));
+  const [paid] = await tx.select({ amount: sum(payments.amount) }).from(payments).where(and(
+    eq(payments.studentId, studentId),
+    eq(payments.organizationId, orgId),
+    ...(excludePaymentId ? [ne(payments.id, excludePaymentId)] : []),
+  ));
+  const remaining = Math.max(0, schedule.totalAmount - Number(paid?.amount ?? 0));
   if (amount > remaining) {
     const fmt = (n: number) => new Intl.NumberFormat('fr-FR').format(n).replace(/\u202f|\u00a0/g, ' ');
     throw new ApiError(
@@ -188,16 +192,17 @@ export async function assertPaymentFits(
  * désynchronisation n'est possible.
  */
 export async function rebuildScheduleForStudent(tx: TenantClient, studentId: string, orgId: string) {
-  const student = await tx.student.findFirst({ where: { id: studentId, organizationId: orgId } });
+  const [student] = await tx.select().from(students)
+    .where(and(eq(students.id, studentId), eq(students.organizationId, orgId))).limit(1);
   if (!student) throw new ApiError(404, 'Student not found', 'NOT_FOUND');
 
-  const schedule = await tx.paymentSchedule.findFirst({ where: { studentId, organizationId: orgId } });
+  const [schedule] = await tx.select().from(paymentSchedules)
+    .where(and(eq(paymentSchedules.studentId, studentId), eq(paymentSchedules.organizationId, orgId))).limit(1);
   if (!schedule) throw new ApiError(404, 'Payment schedule not found', 'NOT_FOUND');
 
-  const payments = await tx.payment.findMany({
-    where: { studentId, organizationId: orgId },
-    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-  });
+  const paymentRows = await tx.select().from(payments)
+    .where(and(eq(payments.studentId, studentId), eq(payments.organizationId, orgId)))
+    .orderBy(asc(payments.date), asc(payments.createdAt));
 
   const now = new Date();
   let installments = buildInstallmentPlan(
@@ -211,19 +216,17 @@ export async function rebuildScheduleForStudent(tx: TenantClient, studentId: str
     now
   );
 
-  for (const payment of payments) {
+  for (const payment of paymentRows) {
     installments = applyPaymentToInstallments(installments, payment.amount, now);
   }
 
   const totals = computeScheduleTotals(installments, schedule.totalAmount);
 
-  return tx.paymentSchedule.update({
-    where: { id: schedule.id },
-    data: {
+  const [updated] = await tx.update(paymentSchedules).set({
       installments: installments as unknown as object,
       paidAmount: totals.paidAmount,
       remainingAmount: totals.remainingAmount,
       status: totals.status,
-    },
-  });
+    }).where(eq(paymentSchedules.id, schedule.id)).returning();
+  return updated;
 }

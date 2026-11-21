@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { and, eq, count } from 'drizzle-orm';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 
-export const PATCH = withAdminRoute(async (req, { prisma, adminUser, params }) => {
+export const PATCH = withAdminRoute(async (req, { adminUser, params }) => {
   const { id } = params;
   const { status, reason } = await req.json();
 
@@ -21,9 +24,7 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser, params }) =
     );
   }
 
-  const targetUser = await prisma.user.findUnique({
-    where: { id },
-  });
+  const [targetUser] = await db.select().from(users).where(eq(users.id, id)).limit(1);
 
   if (!targetUser) {
     return NextResponse.json(
@@ -34,9 +35,8 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser, params }) =
 
   // Si l'utilisateur cible est un Super Admin et qu'on le désactive, s'assurer qu'il en reste au moins un actif
   if (targetUser.isSuperAdmin && status === 'inactif') {
-    const activeSuperAdminsCount = await prisma.user.count({
-      where: { isSuperAdmin: true, status: 'actif' },
-    });
+    const [activeRow] = await db.select({ value: count() }).from(users).where(and(eq(users.isSuperAdmin, true), eq(users.status, 'actif')));
+    const activeSuperAdminsCount = Number(activeRow?.value ?? 0);
     if (activeSuperAdminsCount <= 1) {
       return NextResponse.json(
         { error: 'Impossible de désactiver le dernier Super Administrateur actif de la plateforme.' },
@@ -45,18 +45,14 @@ export const PATCH = withAdminRoute(async (req, { prisma, adminUser, params }) =
     }
   }
 
-  const updated = await prisma.user.update({
-    where: { id },
-    data: { status },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      status: true,
-      isSuperAdmin: true,
-    },
-  });
+  const [updated] = await db.update(users).set({ status }).where(eq(users.id, id)).returning({
+      id: users.id,
+      email: users.email,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      status: users.status,
+      isSuperAdmin: users.isSuperAdmin,
+    });
 
   await logAuditEvent({
     actorId: adminUser.id,

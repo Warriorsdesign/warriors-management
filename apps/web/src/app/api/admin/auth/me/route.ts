@@ -1,23 +1,23 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 
-export const GET = withAdminRoute(async (_req, { prisma, adminUser }) => {
-  const user = await prisma.user.findUnique({
-    where: { id: adminUser.id },
-    select: {
-      id: true,
-      matricule: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      avatarUrl: true,
-      isSuperAdmin: true,
-      status: true,
-      createdAt: true,
-    },
-  });
+export const GET = withAdminRoute(async (_req, { adminUser }) => {
+  const [user] = await db.select({
+      id: users.id,
+      matricule: users.matricule,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      avatarUrl: users.avatarUrl,
+      isSuperAdmin: users.isSuperAdmin,
+      status: users.status,
+      createdAt: users.createdAt,
+    }).from(users).where(eq(users.id, adminUser.id)).limit(1);
 
   if (!user || !user.isSuperAdmin) {
     return NextResponse.json(

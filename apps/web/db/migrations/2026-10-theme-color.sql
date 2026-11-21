@@ -1,6 +1,6 @@
 -- Warriors Management - Couleur de l'application choisie par l'administrateur
--- Idempotent : peut être ré-exécuté sans erreur. À exécuter avec le rôle de migration
--- (DIRECT_URL) AVANT de déployer le code qui lit cette colonne.
+-- Idempotent : peut être ré-exécuté sans erreur. À exécuter avec warriors_admin
+-- sur l'endpoint direct AVANT de déployer le code qui lit cette colonne.
 --
 -- Ajout uniquement : les organisations existantes gardent la couleur actuelle ("noir").
 

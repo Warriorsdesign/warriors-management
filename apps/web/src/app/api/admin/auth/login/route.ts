@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { adminPrisma } from '@/lib/db/admin';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { signAdminToken } from '@/lib/auth/jwt';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
@@ -19,12 +21,7 @@ export async function POST(request: Request) {
     const normalizedEmail = email.trim().toLowerCase();
 
     // Recherche de l'utilisateur avec privilèges Super Admin
-    const user = await adminPrisma.user.findFirst({
-      where: {
-        email: normalizedEmail,
-        isSuperAdmin: true,
-      },
-    });
+    const [user] = await db.select().from(users).where(and(eq(users.email, normalizedEmail), eq(users.isSuperAdmin, true))).limit(1);
 
     const ip = clientIp(request);
     const throttled = await loginThrottleResponse(normalizedEmail, ip, user?.lastLoginAt);
@@ -59,7 +56,7 @@ export async function POST(request: Request) {
 
     // Signature du token JWT Super Admin
     // Connexion réussie : remet à zéro le compteur d'échecs de cet identifiant (voir loginThrottle).
-    await adminPrisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
     const token = await signAdminToken({
       userId: user.id,

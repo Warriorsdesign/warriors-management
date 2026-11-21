@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { adminPrisma } from "@/lib/db/admin";
+import { db } from "@/lib/db";
+import { plans } from "@/lib/db/schema";
+import { asc } from "drizzle-orm";
 import { Landing, type LandingPlan } from "@/components/landing/Landing";
 
 export const metadata: Metadata = {
@@ -18,12 +20,13 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AccueilPage() {
-  const plans: LandingPlan[] = await adminPrisma.plan.findMany({
-    orderBy: { price: "asc" },
-    select: {
-      id: true, name: true, price: true, maxCenters: true, maxStudents: true,
-      isUnlimitedCenters: true, isUnlimitedStudents: true, isPopular: true,
-    },
-  });
-  return <Landing plans={plans} />;
+  const landingPlans: LandingPlan[] = await db
+    .select({
+      id: plans.id, name: plans.name, price: plans.price, maxCenters: plans.maxCenters,
+      maxStudents: plans.maxStudents, isUnlimitedCenters: plans.isUnlimitedCenters,
+      isUnlimitedStudents: plans.isUnlimitedStudents, isPopular: plans.isPopular,
+    })
+    .from(plans)
+    .orderBy(asc(plans.price));
+  return <Landing plans={landingPlans} />;
 }

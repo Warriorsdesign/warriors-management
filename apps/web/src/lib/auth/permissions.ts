@@ -1,4 +1,6 @@
-import type { TenantClient } from '@/lib/db';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { roles, rolePermissions } from '@/lib/db/schema';
 import { ApiError } from '@/lib/api/errors';
 import { ROLES } from './roles';
 import {
@@ -17,8 +19,7 @@ import {
   type SystemRoleKey,
 } from './permissionCatalog';
 
-/** Client Prisma minimal pour lire/écrire les rôles (transaction tenant ou back-office). */
-type RoleClient = Pick<TenantClient, 'role' | 'rolePermission'>;
+type RoleClient = TenantClient;
 
 /**
  * Les rôles d'un utilisateur sont stockés par NOM (User.roles). Un nom n'est unique qu'au
@@ -28,9 +29,7 @@ type RoleClient = Pick<TenantClient, 'role' | 'rolePermission'>;
  * organisation accorderait ses permissions.
  */
 export function orgRoleScope(orgId: string) {
-  return {
-    OR: [{ organizationId: orgId }, { isSystem: true, organizationId: null }],
-  };
+  return or(eq(roles.organizationId, orgId), and(eq(roles.isSystem, true), isNull(roles.organizationId)))!;
 }
 
 /** Permissions effectives de l'utilisateur de la requête (union de ses rôles). */
@@ -65,14 +64,30 @@ export async function loadPermissions(tx: RoleClient, orgId: string, roleNames: 
   if (roleNames.includes(ROLES.ADMIN)) return new PermissionSet(fullGrants(), true);
   if (roleNames.length === 0) return new PermissionSet(normalizeGrants({}));
 
-  const roles = await tx.role.findMany({
-    where: { name: { in: roleNames }, ...orgRoleScope(orgId) },
-    select: { name: true, organizationId: true, permissions: { select: { resource: true, canRead: true, canWrite: true } } },
-  });
-  const byName = new Map<string, (typeof roles)[number]>();
-  for (const role of roles) {
+  const foundRoles = await tx.select({
+    id: roles.id,
+    name: roles.name,
+    organizationId: roles.organizationId,
+  }).from(roles).where(and(inArray(roles.name, roleNames), orgRoleScope(orgId)));
+  if (foundRoles.length === 0) return new PermissionSet(normalizeGrants({}));
+  const permissionRows = await tx.select({
+    roleId: rolePermissions.roleId,
+    resource: rolePermissions.resource,
+    canRead: rolePermissions.canRead,
+    canWrite: rolePermissions.canWrite,
+  }).from(rolePermissions).where(inArray(rolePermissions.roleId, foundRoles.map((role) => role.id)));
+  const byRoleId = new Map<string, typeof permissionRows>();
+  for (const row of permissionRows) {
+    const rows = byRoleId.get(row.roleId) ?? [];
+    rows.push(row);
+    byRoleId.set(row.roleId, rows);
+  }
+  const byName = new Map<string, { name: string; organizationId: string | null; permissions: typeof permissionRows }>();
+  for (const role of foundRoles) {
     const current = byName.get(role.name);
-    if (!current || (current.organizationId === null && role.organizationId !== null)) byName.set(role.name, role);
+    if (!current || (current.organizationId === null && role.organizationId !== null)) {
+      byName.set(role.name, { ...role, permissions: byRoleId.get(role.id) ?? [] });
+    }
   }
   return new PermissionSet(mergeGrants(Array.from(byName.values()).map((r) => rowsToGrants(r.permissions))));
 }
@@ -98,23 +113,27 @@ export function systemTemplateGrants(key: SystemRoleKey): PermissionGrants {
  * filet de sécurité à la lecture des rôles.
  */
 export async function ensureOrgSystemRoles(tx: RoleClient, orgId: string): Promise<void> {
-  const existing = await tx.role.findMany({
-    where: { organizationId: orgId, name: { in: [...SYSTEM_ROLE_KEYS] } },
-    select: { name: true },
-  });
+  const existing = await tx.select({ name: roles.name }).from(roles)
+    .where(and(eq(roles.organizationId, orgId), inArray(roles.name, [...SYSTEM_ROLE_KEYS])));
   const present = new Set(existing.map((r) => r.name));
   for (const key of SYSTEM_ROLE_KEYS) {
     if (present.has(key)) continue;
-    await tx.role.create({
-      data: {
-        name: key,
-        systemKey: key,
-        isSystem: true,
-        description: SYSTEM_ROLE_TEMPLATES[key].description,
-        organizationId: orgId,
-        permissions: { create: grantsToRows(systemTemplateGrants(key)) },
-      },
-    });
+    const [created] = await tx.insert(roles).values({
+      name: key,
+      systemKey: key,
+      isSystem: true,
+      description: SYSTEM_ROLE_TEMPLATES[key].description,
+      organizationId: orgId,
+    }).returning({ id: roles.id });
+    if (created) {
+      const permissions = grantsToRows(systemTemplateGrants(key));
+      if (permissions.length) {
+        await tx.insert(rolePermissions).values(permissions.map((permission) => ({
+          ...permission,
+          roleId: created.id,
+        })));
+      }
+    }
   }
 }
 

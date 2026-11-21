@@ -1,149 +1,63 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { subscriptions, organizations, plans } from '@/lib/db/schema';
+import { and, eq, ilike, desc, count } from 'drizzle-orm';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 
-export const GET = withAdminRoute(async (req, { prisma, searchParams }) => {
+export const GET = withAdminRoute(async (_req, { searchParams }) => {
   const status = searchParams.get('status') || '';
   const search = searchParams.get('search')?.trim() || '';
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const pageSize = Math.min(50, Math.max(1, parseInt(searchParams.get('pageSize') || '15', 10)));
+  const filters = [];
+  if (status && status !== 'all') filters.push(eq(subscriptions.status, status));
+  if (search) filters.push(ilike(organizations.name, `%${search}%`));
+  const where = filters.length ? and(...filters) : undefined;
 
-  const where: any = {};
-
-  if (status && status !== 'all') {
-    where.status = status;
-  }
-
-  if (search) {
-    where.organization = {
-      name: { contains: search, mode: 'insensitive' },
-    };
-  }
-
-  const [total, subscriptions] = await Promise.all([
-    prisma.subscription.count({ where }),
-    prisma.subscription.findMany({
-      where,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      orderBy: { endDate: 'asc' },
-      include: {
-        plan: true,
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            status: true,
-            _count: {
-              select: {
-                centers: true,
-                students: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-  ]);
-
-  // Calculer dynamiquement le statut expiré si la date de fin est dépassée
+  const [totalRow] = await db.select({ value: count() }).from(subscriptions)
+    .leftJoin(organizations, eq(organizations.id, subscriptions.organizationId)).where(where);
+  const rows = await db.select({ subscription: subscriptions, organization: organizations, plan: plans })
+    .from(subscriptions)
+    .leftJoin(organizations, eq(organizations.id, subscriptions.organizationId))
+    .leftJoin(plans, eq(plans.id, subscriptions.planId))
+    .where(where).orderBy(desc(subscriptions.endDate)).limit(pageSize).offset((page - 1) * pageSize);
   const now = new Date();
-  const enhanced = subscriptions.map((sub) => {
-    let computedStatus = sub.status;
-    if (new Date(sub.endDate) < now && sub.status !== 'suspended') {
-      computedStatus = 'expired';
-    }
-    const daysLeft = Math.ceil(
-      (new Date(sub.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    return {
-      ...sub,
-      status: computedStatus,
-      daysLeft,
-      plan: sub.plan?.name ?? "-",
-      planId: sub.planId
-    };
+  const enhanced = rows.map(({ subscription, organization, plan }) => {
+    let computedStatus = subscription.status;
+    if (new Date(subscription.endDate) < now && subscription.status !== 'suspended') computedStatus = 'expired';
+    const daysLeft = Math.ceil((new Date(subscription.endDate).getTime() - now.getTime()) / 86400000);
+    return { ...subscription, status: computedStatus, daysLeft, organization, plan: plan?.name ?? '-', planId: subscription.planId };
   });
-
-  return NextResponse.json({
-    subscriptions: enhanced,
-    pagination: {
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-    },
-  });
+  const total = Number(totalRow?.value ?? 0);
+  return NextResponse.json({ subscriptions: enhanced, pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } });
 });
 
-export const PATCH = withAdminRoute(async (req, { prisma, adminUser }) => {
+export const PATCH = withAdminRoute(async (req, { adminUser }) => {
   const body = await req.json();
   const { id, planId, status, endDate, maxCenters, maxStudents } = body;
-
-  if (!id) {
-    return NextResponse.json(
-      { error: "L'identifiant de la souscription est obligatoire." },
-      { status: 400 }
-    );
-  }
-
-  const existing = await prisma.subscription.findUnique({
-    where: { id },
-    include: { organization: true, plan: true },
-  });
-
-  if (!existing) {
-    return NextResponse.json(
-      { error: 'Abonnement introuvable.' },
-      { status: 404 }
-    );
-  }
-
-  const updated = await prisma.subscription.update({
-    where: { id },
-    data: {
-      planId: planId || existing.planId,
-      status: status || existing.status,
-      endDate: endDate ? new Date(endDate) : existing.endDate,
-      maxCenters: maxCenters !== undefined ? Number(maxCenters) : existing.maxCenters,
-      maxStudents: maxStudents !== undefined ? Number(maxStudents) : existing.maxStudents,
-    },
-    include: { organization: true, plan: true },
-  });
-
-  // Synchroniser le statut de l'organisation
+  if (!id) return NextResponse.json({ error: "L'identifiant de la souscription est obligatoire." }, { status: 400 });
+  const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.id, id)).limit(1);
+  if (!existing) return NextResponse.json({ error: 'Abonnement introuvable.' }, { status: 404 });
+  const [updated] = await db.update(subscriptions).set({
+    planId: planId || existing.planId,
+    status: status || existing.status,
+    endDate: endDate ? new Date(endDate) : existing.endDate,
+    maxCenters: maxCenters !== undefined ? Number(maxCenters) : existing.maxCenters,
+    maxStudents: maxStudents !== undefined ? Number(maxStudents) : existing.maxStudents,
+  }).where(eq(subscriptions.id, id)).returning();
   if (status && status !== existing.status) {
     const orgStatus = ['active', 'trial'].includes(status) ? 'actif' : 'suspendu';
-    await prisma.organization.update({
-      where: { id: existing.organizationId },
-      data: { status: orgStatus },
-    });
-    // On met à jour l'objet pour l'audit
-    updated.organization.status = orgStatus;
+    await db.update(organizations).set({ status: orgStatus }).where(eq(organizations.id, existing.organizationId));
   }
-
+  const [organization] = await db.select().from(organizations).where(eq(organizations.id, existing.organizationId)).limit(1);
+  const [plan] = updated.planId ? await db.select().from(plans).where(eq(plans.id, updated.planId)).limit(1) : [];
   await logAuditEvent({
-    actorId: adminUser.id,
-    actorEmail: adminUser.email,
-    actorName: 'Super Admin',
-    action: 'SUBSCRIPTION_UPDATED',
-    resource: 'Subscription',
-    resourceId: id,
-    details: {
-      organizationName: existing.organization.name,
-      plan: updated.plan?.name,
-      status: updated.status,
-      endDate: updated.endDate,
-    },
+    actorId: adminUser.id, actorEmail: adminUser.email, actorName: 'Super Admin',
+    action: 'SUBSCRIPTION_UPDATED', resource: 'Subscription', resourceId: id,
+    details: { organizationName: organization?.name, plan: plan?.name, status: updated.status, endDate: updated.endDate },
   });
-
-  return NextResponse.json({
-    success: true,
-    subscription: updated,
-    message: 'Abonnement mis à jour avec succès.',
-  });
+  return NextResponse.json({ success: true, subscription: { ...updated, organization, plan }, message: 'Abonnement mis à jour avec succès.' });
 });

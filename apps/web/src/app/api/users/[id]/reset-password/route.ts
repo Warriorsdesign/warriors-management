@@ -6,6 +6,8 @@ import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ROLES } from '@/lib/auth/roles';
 import { generateRandomPassword } from '@/lib/business/matricule';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
+import { users, centerUsers } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 type Params = { id: string };
 
@@ -20,27 +22,21 @@ export const POST = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope
     throw new ApiError(400, 'Utilisez « Mon Profil » pour changer votre propre mot de passe.', 'SELF_RESET_FORBIDDEN');
   }
 
-  const target = await findOrgScopedOrThrow(
-    () =>
-      tx.user.findFirst({
-        where: { id: params.id, organizationId: orgId, ...scope.user(userId) },
-        select: { id: true, matricule: true, firstName: true, lastName: true, email: true, isSuperAdmin: true },
-      }),
-    'Utilisateur introuvable.'
-  );
+  const [targetRow] = await tx.select({ id: users.id, matricule: users.matricule, firstName: users.firstName, lastName: users.lastName, email: users.email, isSuperAdmin: users.isSuperAdmin }).from(users).where(and(eq(users.id, params.id), eq(users.organizationId, orgId))).limit(1);
+  const target = await findOrgScopedOrThrow(async () => targetRow, 'Utilisateur introuvable.');
+  if (scope.centerIds !== null) {
+    const targetLinks = await tx.select({ centerId: centerUsers.centerId }).from(centerUsers).where(eq(centerUsers.userId, target.id));
+    if (!targetLinks.some((link) => scope.centerIds!.includes(link.centerId))) throw new ApiError(404, "Utilisateur introuvable.", "NOT_FOUND");
+  }
   if (target.isSuperAdmin) {
     throw new ApiError(403, "Le mot de passe d'un compte Super Administrateur ne peut pas être réinitialisé ici.", 'FORBIDDEN');
   }
 
-  const actor = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: userId, organizationId: orgId }, select: { email: true, firstName: true, lastName: true } })
-  );
+  const [actorRow] = await tx.select({ email: users.email, firstName: users.firstName, lastName: users.lastName }).from(users).where(and(eq(users.id, userId), eq(users.organizationId, orgId))).limit(1);
+  const actor = await findOrgScopedOrThrow(async () => actorRow);
 
   const provisionalPassword = generateRandomPassword();
-  await tx.user.update({
-    where: { id: target.id },
-    data: { passwordHash: await bcrypt.hash(provisionalPassword, 10), mustChangePassword: true },
-  });
+  await tx.update(users).set({ passwordHash: await bcrypt.hash(provisionalPassword, 10), mustChangePassword: true }).where(eq(users.id, target.id));
 
   await logAuditEvent({
     actorId: userId,

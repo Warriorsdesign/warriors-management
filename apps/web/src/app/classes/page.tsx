@@ -183,7 +183,7 @@ export default function ClassesPage() {
         {!isLoading && classes.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucune classe</h3>
-            <p className="text-sm text-muted-foreground">Il n'y a actuellement aucune classe enregistrée.</p>
+            <p className="text-sm text-muted-foreground">Il n&apos;y a actuellement aucune classe enregistrée.</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-24 min-h-[250px]">

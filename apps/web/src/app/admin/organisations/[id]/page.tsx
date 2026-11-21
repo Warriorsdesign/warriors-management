@@ -112,7 +112,7 @@ export default function AdminOrganizationDetailPage() {
           Organisation introuvable
         </h3>
         <p className="text-xs text-muted-foreground mt-1 mb-4">
-          L'organisation demandée n'existe pas ou a été supprimée.
+          L&apos;organisation demandée n&apos;existe pas ou a été supprimée.
         </p>
         <Link
           href="/admin/organisations"
@@ -272,7 +272,11 @@ export default function AdminOrganizationDetailPage() {
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() =>
+              setActiveTab(
+                tab.id as "overview" | "centers" | "users" | "subscription"
+              )
+            }
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
               activeTab === tab.id
                 ? "bg-secondary text-foreground shadow-xs font-bold"
@@ -332,7 +336,7 @@ export default function AdminOrganizationDetailPage() {
                   <span className="font-bold text-emerald-600 uppercase">{org.subscription.status}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-border">
-                  <span className="text-muted-foreground">Date d'échéance :</span>
+                  <span className="text-muted-foreground">Date d&apos;échéance :</span>
                   <span className="text-foreground">{new Date(org.subscription.endDate).toLocaleDateString("fr-FR")}</span>
                 </div>
                 <div className="flex justify-between py-2">
@@ -344,7 +348,7 @@ export default function AdminOrganizationDetailPage() {
               </div>
             ) : (
               <p className="text-xs text-muted-foreground py-6 text-center">
-                Aucun contrat d'abonnement actif.
+                Aucun contrat d&apos;abonnement actif.
               </p>
             )}
           </Card>
@@ -394,7 +398,7 @@ export default function AdminOrganizationDetailPage() {
           <div className="space-y-2.5">
             {org.users.length === 0 ? (
               <p className="text-xs text-muted-foreground py-8 text-center">
-                Aucun utilisateur rattaché pour l'instant.
+                Aucun utilisateur rattaché pour l&apos;instant.
               </p>
             ) : (
               org.users.map((u) => (
@@ -448,7 +452,7 @@ export default function AdminOrganizationDetailPage() {
               Contrat de Licence & Quotas
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Détails de l'abonnement SaaS souscrit par cette organisation
+              Détails de l&apos;abonnement SaaS souscrit par cette organisation
             </p>
           </div>
 

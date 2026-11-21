@@ -5,7 +5,6 @@ import useSWR from "swr";
 import {
   ScrollText,
   Search,
-  Filter,
   ChevronDown,
   ChevronRight,
   Code2,
@@ -20,7 +19,7 @@ interface AuditLogItem {
   action: string;
   resource: string;
   resourceId: string | null;
-  details: any;
+  details: unknown;
   createdAt: string;
 }
 
@@ -72,10 +71,10 @@ export default function AdminAuditLogsPage() {
       <div>
         <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
           <ScrollText className="w-5 h-5 text-primary" />
-          Journal d'Audit
+          Journal d’Audit
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Historique inaltérable de toutes les opérations d'administration et de sécurité
+          Historique inaltérable de toutes les opérations d&apos;administration et de sécurité
         </p>
       </div>
 
@@ -166,7 +165,7 @@ export default function AdminAuditLogsPage() {
               ) : !data?.logs || data.logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    Aucun événement d'audit enregistré.
+                    Aucun événement d&apos;audit enregistré.
                   </td>
                 </tr>
               ) : (

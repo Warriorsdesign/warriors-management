@@ -13,7 +13,7 @@ import { useUIStore } from "@/lib/store/useUIStore";
 
 import { formatCurrency } from "@/lib/utils";
 import {
-  TrendingDown, TrendingUp, ReceiptText, Wallet, GraduationCap, Banknote, Users, Scale,
+  TrendingDown, TrendingUp, ReceiptText, GraduationCap, Banknote, Users, Scale,
   Download, Printer, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp,
 } from "lucide-react";
 import {
@@ -378,7 +378,7 @@ export default function DashboardPage() {
                     <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} dy={10} interval="preserveStartEnd" minTickGap={24} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(v) => `${v / 1000}k`} />
                     <Tooltip
-                      formatter={(value: any) => `${new Intl.NumberFormat('fr-FR').format(value)} FCFA`}
+                      formatter={(value) => `${new Intl.NumberFormat('fr-FR').format(Number(value ?? 0))} FCFA`}
                       labelFormatter={(_label, payload) => payload?.[0]?.payload?.fullLabel ?? _label}
                       contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
                     />

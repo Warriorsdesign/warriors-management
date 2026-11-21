@@ -110,7 +110,7 @@ export function SuspendOrganizationModal({
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-foreground">
-            Motif de l'opération (consigné dans l'audit) *
+            Motif de l’opération (consigné dans l’audit) *
           </label>
           <textarea
             required

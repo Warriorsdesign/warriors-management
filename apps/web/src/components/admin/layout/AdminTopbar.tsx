@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -67,11 +68,13 @@ export function AdminTopbar() {
         </button>
 
         {adminUser?.avatarUrl ? (
-          <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-white ml-1">
-            <img
+          <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-white ml-1">
+            <Image
               src={adminUser.avatarUrl}
               alt="Avatar"
-              className="w-full h-full object-cover"
+              fill
+              unoptimized
+              className="object-cover"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}

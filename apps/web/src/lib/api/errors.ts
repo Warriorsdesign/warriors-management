@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 
 export class ApiError extends Error {
@@ -30,14 +29,12 @@ export function toErrorResponse(err: unknown): NextResponse {
     );
   }
 
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === 'P2002') {
+  const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : undefined;
+  if (code) {
+    if (code === '23505') {
       return NextResponse.json({ error: 'Duplicate value', code: 'UNIQUE_CONSTRAINT' }, { status: 409 });
     }
-    if (err.code === 'P2025') {
-      return NextResponse.json({ error: 'Resource not found', code: 'NOT_FOUND' }, { status: 404 });
-    }
-    if (err.code === 'P2003') {
+    if (code === '23503') {
       return NextResponse.json(
         { error: 'Resource is referenced by other records', code: 'FK_CONSTRAINT' },
         { status: 409 }

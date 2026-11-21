@@ -10,7 +10,6 @@ import {
   Store,
   Users,
   GraduationCap,
-  CreditCard,
   Edit2,
   Power,
   ArrowRight,
@@ -362,10 +361,10 @@ export default function AdminOrganizationsPage() {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-center text-foreground mb-2">
-                L'organisation a bien été créée
+                L&apos;organisation a bien été créée
               </h3>
               <p className="text-sm text-center text-muted-foreground mb-6">
-                Voici les informations de connexion de l'administrateur. Veuillez bien conserver ces informations.
+                Voici les informations de connexion de l&apos;administrateur. Veuillez bien conserver ces informations.
               </p>
               
               <div className="space-y-3 bg-secondary/30 p-4 rounded-lg border border-border">

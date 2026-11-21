@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminPrisma } from '@/lib/db/admin';
+import { db } from '@/lib/db';
 import { ApiError, toErrorResponse } from './errors';
-import type { PrismaClient } from '@prisma/client';
+import type { Database } from '@/lib/db';
 
 export interface AdminUserContext {
   id: string;
@@ -10,7 +10,7 @@ export interface AdminUserContext {
 }
 
 export interface AdminRouteCtx<P = Record<string, string>> {
-  prisma: PrismaClient;
+  db: Database;
   adminUser: AdminUserContext;
   params: P;
   searchParams: URLSearchParams;
@@ -19,7 +19,7 @@ export interface AdminRouteCtx<P = Record<string, string>> {
 /**
  * Wrapper de sécurité pour toutes les routes d'API Super Administrateur (/api/admin/*).
  * Vérifie que la requête provient d'un Super Admin authentifié (via headers injectés par le middleware).
- * Fournit l'instance adminPrisma avec droits globaux et gère les erreurs de façon unifiée.
+ * Fournit l'accès global à la base et gère les erreurs de façon unifiée.
  */
 export function withAdminRoute<P = Record<string, string>>(
   handler: (req: NextRequest, ctx: AdminRouteCtx<P>) => Promise<NextResponse>
@@ -35,7 +35,7 @@ export function withAdminRoute<P = Record<string, string>>(
       }
 
       return await handler(req, {
-        prisma: adminPrisma,
+        db,
         adminUser: {
           id: adminUserId,
           email: adminEmail,

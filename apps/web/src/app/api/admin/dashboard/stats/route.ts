@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { metricsService } from '@/lib/services/metrics.service';
 
-export const GET = withAdminRoute(async (_req) => {
+export const GET = withAdminRoute(async () => {
   try {
     const metrics = await metricsService.getGlobalMetrics();
     return NextResponse.json(metrics);

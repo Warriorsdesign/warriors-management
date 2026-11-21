@@ -129,7 +129,7 @@ export default function AdminSubscriptionsPage() {
                 <th className="py-3 px-4">Plan</th>
                 <th className="py-3 px-4">Statut Contrat</th>
                 <th className="py-3 px-4">Utilisation Quotas</th>
-                <th className="py-3 px-4">Date d'Échéance</th>
+                <th className="py-3 px-4">Date d&apos;Échéance</th>
                 <th className="py-3 px-4">Temps Restant</th>
                 <th className="py-3 px-6 text-right">Actions</th>
               </tr>

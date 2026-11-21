@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
-import type { Prisma } from '@prisma/client';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { centers, formationCenters, formations } from '@/lib/db/schema';
 import { regenerateLevels } from '@/lib/business/formations';
 import type { ImportRowIssue } from '@/lib/api/types';
 import { normalizeKey, optionalChoice, optionalInt, optionalText, requiredAmount, requiredInt, requiredText } from '../cells';
@@ -46,19 +47,26 @@ export const formationsImport: ImportDefinition<FormationImportRow> = {
   ],
 
   async loadTemplateLists({ tx, orgId, scope }) {
-    const centers = await tx.center.findMany({ where: { organizationId: orgId, ...scope.center() }, select: { name: true }, orderBy: { name: 'asc' } });
-    return { status: ['Actif', 'Inactif'], centers: centers.map((c) => c.name) };
+    const centerRows = await tx.select({ name: centers.name }).from(centers).where(and(
+      eq(centers.organizationId, orgId),
+      ...(scope.centerIds ? [inArray(centers.id, scope.centerIds)] : []),
+    )).orderBy(asc(centers.name));
+    return { status: ['Actif', 'Inactif'], centers: centerRows.map((c) => c.name) };
   },
 
   async validate(rows, { tx, orgId, scope }) {
     const issues: ImportRowIssue[] = [];
     const valid: PreparedRow<FormationImportRow>[] = [];
 
-    const existing = await tx.formation.findMany({ where: { organizationId: orgId }, select: { name: true } });
+    const existing = await tx.select({ name: formations.name }).from(formations)
+      .where(eq(formations.organizationId, orgId));
     // Centres résolus dans le périmètre de l'utilisateur uniquement.
-    const centers = await tx.center.findMany({ where: { organizationId: orgId, ...scope.center() }, select: { id: true, name: true } });
-    const centersByName = indexByName(centers, (c) => c.name, normalizeKey);
-    const defaultCenterIds = centers.length === 1 ? [centers[0].id] : null;
+    const centerRows = await tx.select({ id: centers.id, name: centers.name }).from(centers).where(and(
+      eq(centers.organizationId, orgId),
+      ...(scope.centerIds ? [inArray(centers.id, scope.centerIds)] : []),
+    ));
+    const centersByName = indexByName(centerRows, (c) => c.name, normalizeKey);
+    const defaultCenterIds = centerRows.length === 1 ? [centerRows[0].id] : null;
     const existingNames = new Set(existing.map((f) => normalizeKey(f.name)));
     const seen = new Map<string, number>();
 
@@ -109,26 +117,22 @@ export const formationsImport: ImportDefinition<FormationImportRow> = {
   async commit(rows, { tx, orgId }) {
     const withIds = rows.map(({ data }) => ({ id: randomUUID(), data }));
     for (const batch of chunk(withIds, 500)) {
-      await tx.formation.createMany({
-        data: batch.map(({ id, data }) => ({
+      await tx.insert(formations).values(batch.map(({ id, data }) => ({
           id,
           name: data.name,
           duration: data.duration,
           totalCost: data.totalCost,
           hasLevels: data.levelCount > 0,
           levelCount: data.levelCount > 0 ? data.levelCount : null,
-          levels: (data.levelCount > 0 ? regenerateLevels(null, data.levelCount) : []) as unknown as Prisma.InputJsonValue,
+          levels: data.levelCount > 0 ? regenerateLevels(null, data.levelCount) : [],
           status: data.status,
           organizationId: orgId,
-        })),
-      });
+        })));
       // Centres des formations (table de jonction implicite : "A" = Center.id, "B" = Formation.id).
-      const links = batch.flatMap(({ id, data }) => data.centerIds.map((centerId) => [centerId, id] as const));
-      await tx.$executeRawUnsafe(
-        'INSERT INTO "_FormationCenters" ("A", "B") SELECT * FROM UNNEST($1::text[], $2::text[]) ON CONFLICT DO NOTHING',
-        links.map((l) => l[0]),
-        links.map((l) => l[1])
-      );
+      const links = batch.flatMap(({ id, data }) => data.centerIds.map((centerId) => ({ centerId, formationId: id })));
+      if (links.length) {
+        await tx.insert(formationCenters).values(links).onConflictDoNothing();
+      }
     }
     return rows.length;
   },

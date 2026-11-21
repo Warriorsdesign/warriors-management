@@ -6,71 +6,41 @@ import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { updateOnboardingSchema } from '@/lib/validation/onboarding';
 import type { TenantClient } from '@/lib/db';
 import { countActiveStudents } from '@/lib/business/studentQuota';
+import { organizations, subscriptions, plans, centers, formations, classGroups, users, students } from '@/lib/db/schema';
+import { eq, count } from 'drizzle-orm';
 
-/** État de l'assistant + compteurs réels (source de vérité pour la reprise et le récapitulatif). */
 async function loadOnboardingState(tx: TenantClient, orgId: string) {
-  const organization = await findOrgScopedOrThrow(() =>
-    tx.organization.findFirst({
-      where: { id: orgId },
-      select: {
-        name: true,
-        onboardingStatus: true,
-        onboardingStep: true,
-        onboardingSkippedSteps: true,
-        onboardingCompletedAt: true,
-        subscription: {
-          select: { maxCenters: true, maxStudents: true, status: true, endDate: true, plan: { select: { name: true } } },
-        },
-      },
-    })
-  );
-
-  const [centers, formations, classes, users, students, activeStudents] = await Promise.all([
-    tx.center.count({ where: { organizationId: orgId } }),
-    tx.formation.count({ where: { organizationId: orgId } }),
-    tx.classGroup.count({ where: { organizationId: orgId } }),
-    tx.user.count({ where: { organizationId: orgId } }),
-    tx.student.count({ where: { organizationId: orgId } }),
-    countActiveStudents(tx, orgId),
-  ]);
-
-  const sub = organization.subscription;
+  const [organization] = await tx.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
+  const org = await findOrgScopedOrThrow(async () => organization);
+  const [subscription] = await tx.select().from(subscriptions).where(eq(subscriptions.organizationId, orgId)).limit(1);
+  const [plan] = subscription?.planId ? await tx.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1) : [undefined];
+  const [centersRow] = await tx.select({ value: count() }).from(centers).where(eq(centers.organizationId, orgId));
+  const [formationsRow] = await tx.select({ value: count() }).from(formations).where(eq(formations.organizationId, orgId));
+  const [classesRow] = await tx.select({ value: count() }).from(classGroups).where(eq(classGroups.organizationId, orgId));
+  const [usersRow] = await tx.select({ value: count() }).from(users).where(eq(users.organizationId, orgId));
+  const [studentsRow] = await tx.select({ value: count() }).from(students).where(eq(students.organizationId, orgId));
+  const activeStudents = await countActiveStudents(tx, orgId);
   return {
-    organizationName: organization.name,
-    status: organization.onboardingStatus,
-    step: organization.onboardingStep,
-    skippedSteps: organization.onboardingSkippedSteps,
-    completedAt: organization.onboardingCompletedAt,
-    counts: { centers, formations, classes, users, students, activeStudents },
-    limits: sub
-      ? { planName: sub.plan?.name ?? 'Essai', maxCenters: sub.maxCenters, maxStudents: sub.maxStudents }
-      : null,
+    organizationName: org.name,
+    status: org.onboardingStatus,
+    step: org.onboardingStep,
+    skippedSteps: org.onboardingSkippedSteps,
+    completedAt: org.onboardingCompletedAt,
+    counts: { centers: Number(centersRow.value), formations: Number(formationsRow.value), classes: Number(classesRow.value), users: Number(usersRow.value), students: Number(studentsRow.value), activeStudents },
+    limits: subscription ? { planName: plan?.name ?? 'Essai', maxCenters: subscription.maxCenters, maxStudents: subscription.maxStudents } : null,
   };
 }
 
-export const GET = withApiRoute(async (_req, { tx, orgId }) => {
-  return NextResponse.json(await loadOnboardingState(tx, orgId));
-}, { permission: { resource: 'organization', action: 'write' } });
+export const GET = withApiRoute(async (_req, { tx, orgId }) => NextResponse.json(await loadOnboardingState(tx, orgId)), { permission: { resource: 'organization', action: 'write' } });
 
-/**
- * Sauvegarde la progression (étape courante, étapes ignorées). Passe l'assistant à "en_cours"
- * au premier enregistrement ; ne le termine jamais (voir /api/onboarding/complete). Une
- * organisation déjà configurée qui revisite l'assistant depuis les paramètres reste "termine".
- */
 export const PATCH = withApiRoute(async (req, { tx, orgId }) => {
   const body = updateOnboardingSchema.parse(await req.json());
-  const current = await findOrgScopedOrThrow(() =>
-    tx.organization.findFirst({ where: { id: orgId }, select: { onboardingStatus: true } })
-  );
-
-  await tx.organization.update({
-    where: { id: orgId },
-    data: {
-      ...(body.step !== undefined ? { onboardingStep: body.step } : {}),
-      ...(body.skippedSteps !== undefined ? { onboardingSkippedSteps: body.skippedSteps } : {}),
-      ...(current.onboardingStatus === 'non_commence' ? { onboardingStatus: 'en_cours' } : {}),
-    },
-  });
-
+  const [currentRow] = await tx.select({ onboardingStatus: organizations.onboardingStatus }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+  const current = await findOrgScopedOrThrow(async () => currentRow);
+  await tx.update(organizations).set({
+    ...(body.step !== undefined ? { onboardingStep: body.step } : {}),
+    ...(body.skippedSteps !== undefined ? { onboardingSkippedSteps: body.skippedSteps } : {}),
+    ...(current.onboardingStatus === 'non_commence' ? { onboardingStatus: 'en_cours' } : {}),
+  }).where(eq(organizations.id, orgId));
   return NextResponse.json(await loadOnboardingState(tx, orgId));
 }, { permission: { resource: 'organization', action: 'write' } });

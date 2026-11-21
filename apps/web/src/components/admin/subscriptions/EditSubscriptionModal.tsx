@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { Modal } from "@/components/ui/modal";
 import { apiFetch, ApiClientError } from "@/lib/api/client";
 import { useUIStore } from "@/lib/store/useUIStore";
-import { CreditCard, Calendar, Users, Store, Loader2, Info } from "lucide-react";
+import { Calendar, Users, Store, Loader2, Info } from "lucide-react";
 
 interface Plan {
   id: string;
@@ -157,7 +157,7 @@ export function EditSubscriptionModal({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-foreground">Date d'échéance</label>
+          <label className="text-xs font-semibold text-foreground">Date d’échéance</label>
           <div className="relative">
             <Calendar className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input

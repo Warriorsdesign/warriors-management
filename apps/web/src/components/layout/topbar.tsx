@@ -1,6 +1,7 @@
 "use client"
 import React from "react";
-import { Search, Bell, Menu } from "lucide-react";
+import Image from "next/image";
+import { Bell, Menu } from "lucide-react";
 import { useCenters } from "@/lib/hooks/useCenters";
 import { Badge } from "@/components/ui/badge";
 import { useUIStore } from "@/lib/store/useUIStore";
@@ -13,8 +14,6 @@ export function Topbar() {
   const selectedCenters = useUIStore(state => state.selectedCenterIds);
   const setSelectedCenters = useUIStore(state => state.setSelectedCenterIds);
   const pathname = usePathname();
-  const isDashboard = pathname === "/";
-
   const { user: userProfile, roles } = useSession();
   const { centers } = useCenters();
 
@@ -62,8 +61,8 @@ export function Topbar() {
           </button>
           
           {userProfile?.avatarUrl ? (
-            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-white ml-1 md:ml-2">
-              <img src={userProfile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+            <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-white ml-1 md:ml-2">
+              <Image src={userProfile.avatarUrl} alt="Avatar" fill unoptimized className="object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
             </div>
           ) : (
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold ml-1 md:ml-2 flex-shrink-0">

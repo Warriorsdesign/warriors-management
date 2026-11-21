@@ -80,7 +80,20 @@ export function OrganizationModal({
         });
         showToast("Organisation mise à jour avec succès.", "success");
       } else {
-        const payload: any = {
+        const payload: {
+          name: string;
+          email: string;
+          phone: string;
+          address: string;
+          plan: string;
+          initialAdmin?: {
+            matricule: string;
+            firstName: string;
+            lastName: string;
+            email: string;
+            password: string;
+          };
+        } = {
           name,
           email,
           phone,
@@ -135,7 +148,7 @@ export function OrganizationModal({
 
         <div className="space-y-1">
           <label className="text-xs font-semibold text-foreground">
-            Nom de l'organisation *
+            Nom de l’organisation *
           </label>
           <div className="relative">
             <Building2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -196,7 +209,7 @@ export function OrganizationModal({
 
         {!isEditing && (
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-foreground">Formule d'Abonnement *</label>
+            <label className="text-xs font-semibold text-foreground">Formule d’Abonnement *</label>
             <select
               value={plan}
               onChange={(e) => setPlan(e.target.value)}

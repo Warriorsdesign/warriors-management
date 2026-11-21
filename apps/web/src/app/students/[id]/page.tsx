@@ -728,7 +728,7 @@ export default function StudentDetailsPage() {
               disabled
               options={allFormations.map(f => ({ label: f.name, value: f.id }))}
             />
-            <p className="text-xs text-muted-foreground">La formation ne change pas : l'échéancier en dépend.</p>
+            <p className="text-xs text-muted-foreground">La formation ne change pas : l’échéancier en dépend.</p>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Classe</label>
@@ -744,7 +744,7 @@ export default function StudentDetailsPage() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">Date d'inscription</label>
+            <label className="text-sm font-medium">Date d’inscription</label>
             <DatePicker
               value={studentFormData.enrollmentDate ? new Date(studentFormData.enrollmentDate) : undefined}
               onChange={(d) => {
@@ -827,7 +827,7 @@ export default function StudentDetailsPage() {
           <div>
             <h3 className="text-lg font-bold text-foreground">Aucun paiement</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Cet étudiant n'a encore effectué aucun paiement. Il est donc impossible de générer un reçu.
+              Cet étudiant n’a encore effectué aucun paiement. Il est donc impossible de générer un reçu.
             </p>
           </div>
           <div className="w-full pt-4">

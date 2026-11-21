@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { users } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 import bcrypt from 'bcryptjs';
 
-export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
+export const POST = withAdminRoute(async (req, { adminUser }) => {
   const body = await req.json();
   const { firstName, lastName, email, matricule, password } = body;
 
@@ -17,9 +20,7 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
   const normalizedEmail = email.trim().toLowerCase();
 
   // Vérifier l'unicité de l'email
-  const existingUser = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
+  const [existingUser] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
 
   if (existingUser) {
     return NextResponse.json(
@@ -34,28 +35,27 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser }) => {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const newSuperAdmin = await prisma.user.create({
-    data: {
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: normalizedEmail,
-      matricule: generatedMatricule,
-      passwordHash,
-      isSuperAdmin: true,
-      roles: ['SUPER_ADMIN'],
-      organizationId: null,
-      status: 'actif',
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      email: true,
-      matricule: true,
-      isSuperAdmin: true,
-      createdAt: true,
-    },
+  const [newSuperAdmin] = await db.insert(users).values({
+    firstName: firstName.trim(),
+    lastName: lastName.trim(),
+    email: normalizedEmail,
+    matricule: generatedMatricule,
+    passwordHash,
+    isSuperAdmin: true,
+    roles: ['SUPER_ADMIN'],
+    organizationId: null,
+    status: 'actif',
+  }).returning({
+    id: users.id,
+    firstName: users.firstName,
+    lastName: users.lastName,
+    email: users.email,
+    matricule: users.matricule,
+    isSuperAdmin: users.isSuperAdmin,
+    createdAt: users.createdAt,
   });
+
+  await logAuditEvent
 
   await logAuditEvent({
     actorId: adminUser.id,

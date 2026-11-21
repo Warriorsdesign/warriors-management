@@ -1,3 +1,5 @@
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { centers as centersTable, classGroups, formationCenters, formations as formationsTable } from '@/lib/db/schema';
 import type { ImportRowIssue } from '@/lib/api/types';
 import { normalizeKey, optionalDate, requiredInt, requiredText } from '../cells';
 import { indexByName, RowReader } from '../row';
@@ -40,11 +42,19 @@ export const classesImport: ImportDefinition<ClassImportRow> = {
   ],
 
   async loadTemplateLists({ tx, orgId, scope }) {
-    const [formations, centers] = await Promise.all([
-      tx.formation.findMany({ where: { organizationId: orgId, ...scope.formation() }, select: { name: true }, orderBy: { name: 'asc' } }),
-      tx.center.findMany({ where: { organizationId: orgId, ...scope.center() }, select: { name: true }, orderBy: { name: 'asc' } }),
+    const [formationRows, centerRows] = await Promise.all([
+      scope.centerIds
+        ? tx.selectDistinct({ name: formationsTable.name }).from(formationsTable)
+            .innerJoin(formationCenters, eq(formationCenters.formationId, formationsTable.id))
+            .where(and(eq(formationsTable.organizationId, orgId), inArray(formationCenters.centerId, scope.centerIds)))
+            .orderBy(asc(formationsTable.name))
+        : tx.select({ name: formationsTable.name }).from(formationsTable).where(eq(formationsTable.organizationId, orgId)).orderBy(asc(formationsTable.name)),
+      tx.select({ name: centersTable.name }).from(centersTable).where(and(
+        eq(centersTable.organizationId, orgId),
+        ...(scope.centerIds ? [inArray(centersTable.id, scope.centerIds)] : []),
+      )).orderBy(asc(centersTable.name)),
     ]);
-    return { formations: formations.map((f) => f.name), centers: centers.map((c) => c.name) };
+    return { formations: formationRows.map((f) => f.name), centers: centerRows.map((c) => c.name) };
   },
 
   async validate(rows, { tx, orgId, scope }) {
@@ -52,13 +62,39 @@ export const classesImport: ImportDefinition<ClassImportRow> = {
     const valid: PreparedRow<ClassImportRow>[] = [];
 
     // Un centre ou une formation hors du périmètre de l'utilisateur est traité comme introuvable.
-    const [formations, centers, existingClasses] = await Promise.all([
-      tx.formation.findMany({ where: { organizationId: orgId, ...scope.formation() }, select: { id: true, name: true, centers: { select: { id: true } } } }),
-      tx.center.findMany({ where: { organizationId: orgId, ...scope.center() }, select: { id: true, name: true } }),
-      tx.classGroup.findMany({ where: { organizationId: orgId, ...scope.classGroup() }, select: { name: true, centerId: true } }),
+    const [formationRows, centerRows, existingClasses] = await Promise.all([
+      scope.centerIds
+        ? tx.selectDistinct({ id: formationsTable.id, name: formationsTable.name }).from(formationsTable)
+            .innerJoin(formationCenters, eq(formationCenters.formationId, formationsTable.id))
+            .where(and(eq(formationsTable.organizationId, orgId), inArray(formationCenters.centerId, scope.centerIds)))
+        : tx.select({ id: formationsTable.id, name: formationsTable.name }).from(formationsTable)
+            .where(eq(formationsTable.organizationId, orgId)),
+      tx.select({ id: centersTable.id, name: centersTable.name }).from(centersTable).where(and(
+        eq(centersTable.organizationId, orgId),
+        ...(scope.centerIds ? [inArray(centersTable.id, scope.centerIds)] : []),
+      )),
+      tx.select({ name: classGroups.name, centerId: classGroups.centerId }).from(classGroups).where(and(
+        eq(classGroups.organizationId, orgId),
+        ...(scope.centerIds ? [inArray(classGroups.centerId, scope.centerIds)] : []),
+      )),
     ]);
+    const formationIds = formationRows.map((formation) => formation.id);
+    const formationLinks = formationIds.length
+      ? await tx.select({ formationId: formationCenters.formationId, centerId: formationCenters.centerId })
+          .from(formationCenters).where(inArray(formationCenters.formationId, formationIds))
+      : [];
+    const linkedCentersByFormation = new Map<string, string[]>();
+    for (const link of formationLinks) {
+      const list = linkedCentersByFormation.get(link.formationId) ?? [];
+      list.push(link.centerId);
+      linkedCentersByFormation.set(link.formationId, list);
+    }
+    const formations = formationRows.map((formation) => ({
+      ...formation,
+      centers: (linkedCentersByFormation.get(formation.id) ?? []).map((id) => ({ id })),
+    }));
     const formationsByName = indexByName(formations, (f) => f.name, normalizeKey);
-    const centersByName = indexByName(centers, (c) => c.name, normalizeKey);
+    const centersByName = indexByName(centerRows, (c) => c.name, normalizeKey);
     const existingKeys = new Set(existingClasses.map((c) => `${c.centerId}|${normalizeKey(c.name)}`));
     const seen = new Map<string, number>();
 
@@ -117,9 +153,7 @@ export const classesImport: ImportDefinition<ClassImportRow> = {
 
   async commit(rows, { tx, orgId }) {
     for (const batch of chunk(rows, 500)) {
-      await tx.classGroup.createMany({
-        data: batch.map(({ data }) => ({ ...data, status: 'ouverte', organizationId: orgId })),
-      });
+      await tx.insert(classGroups).values(batch.map(({ data }) => ({ ...data, status: 'ouverte', organizationId: orgId })));
     }
     return rows.length;
   },

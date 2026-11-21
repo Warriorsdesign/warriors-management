@@ -1,7 +1,9 @@
 import { randomBytes } from 'crypto';
 import { ApiError } from '@/lib/api/errors';
-import type { TenantClient } from '@/lib/db';
-import { adminPrisma } from '@/lib/db/admin';
+import { and, count, eq, like } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import type { TenantClient } from '@/lib/db-types';
+import { students, users } from '@/lib/db/schema';
 
 function randomMatriculeSuffix(): string {
   return String(Math.floor(Math.random() * 10000)).padStart(4, '0');
@@ -12,9 +14,8 @@ export async function generateStudentMatricule(tx: TenantClient, orgId: string):
   const year = new Date().getFullYear();
   for (let i = 0; i < 5; i++) {
     const candidate = `WM${year}${randomMatriculeSuffix()}`;
-    const exists = await tx.student.findUnique({
-      where: { matricule_organizationId: { matricule: candidate, organizationId: orgId } },
-    });
+    const [exists] = await tx.select({ id: students.id }).from(students)
+      .where(and(eq(students.matricule, candidate), eq(students.organizationId, orgId))).limit(1);
     if (!exists) return candidate;
   }
   throw new ApiError(500, 'Failed to generate a unique student matricule');
@@ -63,19 +64,20 @@ function organizationCode(orgName: string): string {
  * Sert désormais d'identifiant de connexion (voir /api/auth/login) : le login se fait
  * AVANT de connaître l'organisation, donc User.matricule doit être unique sur TOUTE la
  * base, pas seulement au sein d'une org. Le comptage/la vérification d'unicité passe
- * donc par `adminPrisma` plutôt que par `tx`, qui est cantonné à l'organisation courante par la RLS.
+ * donc par l'accès global `db` plutôt que par `tx`, qui est cantonné à l'organisation courante par la RLS.
  */
 export async function generateUserMatricule(orgName: string): Promise<string> {
   const now = new Date();
   const yymm = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
   const prefix = `${organizationCode(orgName)}${yymm}`;
 
-  const existingCount = await adminPrisma.user.count({ where: { matricule: { startsWith: prefix } } });
+  const [countRow] = await db.select({ count: count() }).from(users).where(like(users.matricule, `${prefix}%`));
+  const existingCount = countRow?.count ?? 0;
 
   for (let i = 0; i < 20; i++) {
     const seq = String(existingCount + 1 + i).padStart(3, '0');
     const candidate = `${prefix}${seq}`;
-    const exists = await adminPrisma.user.findUnique({ where: { matricule: candidate } });
+    const [exists] = await db.select({ id: users.id }).from(users).where(eq(users.matricule, candidate)).limit(1);
     if (!exists) return candidate;
   }
   throw new ApiError(500, 'Failed to generate a unique user matricule');

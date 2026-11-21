@@ -1,7 +1,7 @@
 -- Warriors Management - Centres d'une formation (relation Formation <-> Center)
--- Idempotent. À exécuter avec le rôle de migration (DIRECT_URL) AVANT de déployer le code.
+-- Idempotent. À exécuter avec warriors_admin sur l'endpoint direct AVANT de déployer le code.
 --
--- Table de jonction implicite Prisma "_FormationCenters" : "A" = Center.id, "B" = Formation.id.
+-- Table de jonction "_FormationCenters" : "A" = Center.id, "B" = Formation.id.
 -- Ajout uniquement : aucune table ni donnée existante n'est supprimée ou modifiée.
 
 BEGIN;

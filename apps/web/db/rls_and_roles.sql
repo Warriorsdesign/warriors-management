@@ -1,17 +1,19 @@
 -- Warriors Management - PostgreSQL RLS & rôle applicatif (voir /backend.md)
 -- Idempotent: peut être ré-exécuté sans erreur.
 
--- 1. Rôle PostgreSQL applicatif (LOGIN, sans BYPASSRLS, sans privilège DDL).
---    Remplacer __APP_USER_PW__ par le mot de passe de DATABASE_URL avant exécution.
+-- 1. Rôle PostgreSQL applicatif (NOLOGIN, sans BYPASSRLS ni privilège DDL).
+--    L'application s'y réduit avec SET LOCAL ROLE dans chaque transaction tenant.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_user') THEN
-    CREATE ROLE app_user LOGIN PASSWORD '__APP_USER_PW__' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
+    CREATE ROLE app_user NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
   ELSE
-    ALTER ROLE app_user WITH LOGIN PASSWORD '__APP_USER_PW__' NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
+    ALTER ROLE app_user WITH NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION;
   END IF;
 END
 $$;
+
+GRANT app_user TO warriors_admin;
 
 -- 2. Activation + FORCE de Row Level Security sur toutes les tables métiers,
 --    y compris Organization (racine du tenant elle-même).
@@ -40,7 +42,7 @@ ALTER TABLE "AuditLog"         FORCE  ROW LEVEL SECURITY;
 
 -- 3. Politiques d'isolation tenant pour `app_user`.
 --    app.org_id est injecté par withTenantContext() via set_config() à chaque transaction.
---    Colonnes organizationId/id sont de type text (uuid() généré côté Prisma) -> pas de cast ::uuid.
+--    Les identifiants sont du texte contenant des UUID; aucun cast ::uuid n'est nécessaire.
 
 DROP POLICY IF EXISTS tenant_isolation_organization ON "Organization";
 CREATE POLICY tenant_isolation_organization ON "Organization"
@@ -107,7 +109,7 @@ CREATE POLICY tenant_auditlog_insert ON "AuditLog"
   FOR INSERT TO app_user
   WITH CHECK (true);
 
--- 3bis. Table de jonction implicite Prisma pour Center.users <-> User.centers ("A"=Center.id, "B"=User.id).
+-- 3bis. Table de jonction Center.users <-> User.centers ("A"=Center.id, "B"=User.id).
 --       Pas de colonne organizationId propre : on résout via la table Center liée.
 ALTER TABLE "_CenterUsers" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "_CenterUsers" FORCE  ROW LEVEL SECURITY;
@@ -118,7 +120,7 @@ CREATE POLICY tenant_isolation_centerusers ON "_CenterUsers"
   USING (EXISTS (SELECT 1 FROM "Center" WHERE "Center"."id" = "_CenterUsers"."A" AND "Center"."organizationId" = current_setting('app.org_id', true)))
   WITH CHECK (EXISTS (SELECT 1 FROM "Center" WHERE "Center"."id" = "_CenterUsers"."A" AND "Center"."organizationId" = current_setting('app.org_id', true)));
 
--- 3ter. Table de jonction implicite Prisma pour Formation.centers <-> Center.formations ("A"=Center.id, "B"=Formation.id).
+-- 3ter. Table de jonction Formation.centers <-> Center.formations ("A"=Center.id, "B"=Formation.id).
 ALTER TABLE "_FormationCenters" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "_FormationCenters" FORCE  ROW LEVEL SECURITY;
 
@@ -134,5 +136,5 @@ CREATE POLICY tenant_isolation_formationcenters ON "_FormationCenters"
 GRANT USAGE ON SCHEMA public TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
 
--- DATABASE_URL utilise app_user. DIRECT_URL utilise un rôle d'administration séparé,
--- nécessaire aux migrations et aux opérations globales du Back-Office.
+-- DATABASE_URL utilise warriors_admin. Les requêtes tenant basculent en app_user
+-- dans leur transaction; les opérations globales et migrations gardent le rôle admin.

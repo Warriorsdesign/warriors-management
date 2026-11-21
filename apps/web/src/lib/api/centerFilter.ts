@@ -3,7 +3,7 @@
  * query string (?centerId=a&centerId=b). Un tableau vide signifie "tous les centres" -
  * chaque helper retourne alors {} (aucune clause where ajoutée).
  *
- * Le chemin vers Center diffère selon le modèle (voir prisma/schema.prisma) :
+ * Le chemin vers Center diffère selon le modèle de données :
  * ClassGroup a un centerId direct, Student/PaymentSchedule/Payment y accèdent via leur
  * classe (student.classGroup.centerId), Formation via ses centres (centers.some), et
  * Expense a désormais son propre centerId direct.

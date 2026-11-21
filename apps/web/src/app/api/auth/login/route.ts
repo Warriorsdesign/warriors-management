@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
-import { adminPrisma } from '@/lib/db/admin';
+import { db } from '@/lib/db';
+import { users, organizations, subscriptions, plans } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { subscriptionService } from '@/lib/services/subscription.service';
 import { isOnboardingRequired, PASSWORD_CHANGE_PAGE, setAuthCookie } from '@/lib/auth/session';
@@ -24,9 +27,7 @@ export async function POST(request: Request) {
     }
 
     // Login has no organization context yet, so the server-only admin client performs this global lookup.
-    const user = await adminPrisma.user.findUnique({
-      where: { matricule },
-    });
+    const [user] = await db.select().from(users).where(eq(users.matricule, matricule)).limit(1);
 
     // Trop d'échecs récents sur ce matricule ou depuis cette connexion : refus avant tout contrôle.
     const throttled = await loginThrottleResponse(matricule, ip, user?.lastLoginAt);
@@ -70,23 +71,18 @@ export async function POST(request: Request) {
     // Vérifier si l'organisation cliente est suspendue
     let onboardingRequired = false;
     if (user.organizationId) {
-      const org = await adminPrisma.organization.findUnique({
-        where: { id: user.organizationId },
-        select: {
-          status: true,
-          name: true,
-          subscription: { select: { status: true, endDate: true, plan: { select: { price: true } } } },
-        },
-      });
+      const [org] = await db.select().from(organizations).where(eq(organizations.id, user.organizationId)).limit(1);
+      const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, user.organizationId)).limit(1);
+      const plan = subscription?.planId ? (await db.select().from(plans).where(eq(plans.id, subscription.planId)).limit(1))[0] : undefined;
       // Suspension, fin d'essai ou d'abonnement : vérifiée ici sans attendre la suspension différée.
-      const block = org ? getAccessBlock(org, org.subscription) : null;
+      const block = org ? getAccessBlock(org, subscription ? { ...subscription, plan: plan ? { price: plan.price } : null } : null) : null;
       if (block) {
         return NextResponse.json({ error: block.message, code: block.code }, { status: 403 });
       }
-      onboardingRequired = await isOnboardingRequired(adminPrisma, user.organizationId, user.roles);
+      onboardingRequired = await isOnboardingRequired(db as unknown as TenantClient, user.organizationId, user.roles);
     }
 
-    await adminPrisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
 
     // Mot de passe provisoire (création ou réinitialisation par un tiers) : le middleware
     // cantonne la session à la page de changement de mot de passe tant que ce drapeau est présent.
