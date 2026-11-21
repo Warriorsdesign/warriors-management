@@ -176,7 +176,7 @@ export default function PaymentsPage() {
         {!isLoading && payments.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucun paiement</h3>
-            <p className="text-sm text-muted-foreground">Il n'y a actuellement aucun paiement enregistré.</p>
+            <p className="text-sm text-muted-foreground">Il n’y a actuellement aucun paiement enregistré.</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-4 min-h-[250px]">

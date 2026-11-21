@@ -3,6 +3,8 @@ import { withApiRoute } from '@/lib/api/handler';
 import { ApiError } from '@/lib/api/errors';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
+import { users } from '@/lib/db/schema';
+import { and, eq, sql } from 'drizzle-orm';
 import { getImportDefinition } from '@/lib/import/registry';
 import { analyzeFile, assertImportPermission, readUploadedFile } from '@/lib/import/engine';
 
@@ -23,7 +25,7 @@ export const POST = withApiRoute<{ type: string }>(async (req, { tx, orgId, user
 
   // Sérialise les imports d'une même organisation : deux imports simultanés ne peuvent pas
   // dépasser ensemble le quota du plan ni s'attribuer les mêmes matricules.
-  await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `import:${orgId}`);
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`import:${orgId}`}))`);
 
   const { analysis, result } = await analyzeFile(definition, buffer, { tx, orgId, userId, scope, perms });
 
@@ -44,9 +46,8 @@ export const POST = withApiRoute<{ type: string }>(async (req, { tx, orgId, user
 
   const imported = await definition.commit(result.valid, { tx, orgId, userId, scope, perms });
 
-  const actor = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: userId, organizationId: orgId }, select: { email: true, firstName: true, lastName: true } })
-  );
+  const [actorRow] = await tx.select({ email: users.email, firstName: users.firstName, lastName: users.lastName }).from(users).where(and(eq(users.id, userId), eq(users.organizationId, orgId))).limit(1);
+  const actor = await findOrgScopedOrThrow(async () => actorRow);
   await logAuditEvent({
     actorId: userId,
     actorEmail: actor.email,

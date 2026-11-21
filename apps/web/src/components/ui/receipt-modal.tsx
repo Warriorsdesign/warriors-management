@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { X, Download } from 'lucide-react';
-import { cn, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 interface ReceiptStudent {
   firstName: string;
@@ -92,7 +93,7 @@ export function ReceiptModal({ isOpen, onClose, student, payment, payments, orga
             <div className="flex justify-between items-start mb-6 border-b border-gray-100 pb-5 shrink-0">
               <div className="flex items-center gap-3">
                 {organization?.logoUrl ? (
-                  <img src={organization.logoUrl} alt="Logo" className="w-12 h-12 object-contain" />
+                  <Image src={organization.logoUrl} alt="Logo" width={48} height={48} unoptimized className="w-12 h-12 object-contain" />
                 ) : (
                   <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold text-xl shadow-sm">
                     {orgInitials}

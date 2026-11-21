@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { Upload, Building2, Save, User as UserIcon, CreditCard, FileSpreadsheet } from "lucide-react";
 import { useSession, useCan, updateOwnProfile, changeOwnPassword } from "@/lib/hooks/useSession";
 import { useOrganization, updateOrganization } from "@/lib/hooks/useOrganization";
@@ -165,7 +166,7 @@ export default function SettingsPage() {
     <div className="space-y-6 pb-24 min-h-[250px]">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Paramètres</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gérez votre profil personnel et l'organisation.</p>
+        <p className="text-sm text-muted-foreground mt-1">Gérez votre profil personnel et l’organisation.</p>
       </div>
 
       <div className="flex flex-col md:flex-row bg-card border border-border rounded-xl shadow-none overflow-hidden min-h-[600px]">
@@ -275,8 +276,8 @@ export default function SettingsPage() {
               <form onSubmit={handleUserSubmit} className="space-y-8">
                 <div className="flex items-center gap-6">
                   {userFormData.avatarUrl ? (
-                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white shadow-sm border border-border">
-                      <img src={userFormData.avatarUrl} alt="User Avatar" className="w-full h-full object-cover" />
+                    <div className="relative w-20 h-20 rounded-full overflow-hidden bg-white shadow-sm border border-border">
+                      <Image src={userFormData.avatarUrl} alt="User Avatar" fill unoptimized className="object-cover" />
                     </div>
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-2xl font-bold shadow-sm">
@@ -292,7 +293,7 @@ export default function SettingsPage() {
                       className="hidden"
                     />
                     <button type="button" onClick={() => userFileInputRef.current?.click()} className="px-4 py-2 bg-secondary text-foreground text-sm font-medium rounded-md hover:bg-secondary/80 transition-colors">
-                      Changer l'image
+                      Changer l’image
                     </button>
                     <button type="button" onClick={() => setUserFormData({...userFormData, avatarUrl: ""})} className="px-4 py-2 bg-background border border-border text-muted-foreground text-sm font-medium rounded-md hover:bg-secondary transition-colors">
                       Supprimer
@@ -401,7 +402,7 @@ export default function SettingsPage() {
           {activeTab === "organization" && canReadOrg && (
             <div className="max-w-2xl space-y-8 animate-in fade-in duration-300">
               <div className="border-b border-border pb-4">
-                <h2 className="text-xl font-semibold text-foreground">Informations de l'Organisation</h2>
+                <h2 className="text-xl font-semibold text-foreground">Informations de l’Organisation</h2>
                 <p className="text-sm text-muted-foreground mt-1">Ces informations seront utilisées sur les reçus et factures.</p>
               </div>
 
@@ -440,7 +441,7 @@ export default function SettingsPage() {
 
                   <div className="flex-1 w-full space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Nom de l'organisation</label>
+                      <label className="text-sm font-medium text-foreground">Nom de l’organisation</label>
                       <input
                         type="text"
                         value={orgFormData.name}

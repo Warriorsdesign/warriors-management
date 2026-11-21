@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { withAdminRoute } from '@/lib/api/admin-handler';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
+import { db } from '@/lib/db';
+import { organizations, subscriptions } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
-export const POST = withAdminRoute(async (req, { prisma, adminUser, params }) => {
+export const POST = withAdminRoute(async (req, { adminUser, params }) => {
   const { id } = params;
   const { status, reason } = await req.json();
 
@@ -13,10 +16,8 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser, params }) =>
     );
   }
 
-  const organization = await prisma.organization.findUnique({
-    where: { id },
-    include: { subscription: true },
-  });
+  const [organization] = await db.select().from(organizations).where(eq(organizations.id, id)).limit(1);
+  const [subscription] = await db.select().from(subscriptions).where(eq(subscriptions.organizationId, id)).limit(1);
 
   if (!organization) {
     return NextResponse.json(
@@ -26,24 +27,15 @@ export const POST = withAdminRoute(async (req, { prisma, adminUser, params }) =>
   }
 
   // Mise à jour du statut de l'organisation
-  const updated = await prisma.organization.update({
-    where: { id },
-    data: { status },
-  });
+  const [updated] = await db.update(organizations).set({ status }).where(eq(organizations.id, id)).returning();
 
   // Si on suspend, on peut également marquer la souscription en suspended
-  if (status === 'suspendu' && organization.subscription) {
-    await prisma.subscription.update({
-      where: { organizationId: id },
-      data: { status: 'suspended' },
-    });
-  } else if (status === 'actif' && organization.subscription?.status === 'suspended') {
+  if (status === 'suspendu' && subscription) {
+    await db.update(subscriptions).set({ status: 'suspended' }).where(eq(subscriptions.organizationId, id));
+  } else if (status === 'actif' && subscription?.status === 'suspended') {
     // Si on réactive, remettre la souscription en active si la date n'est pas dépassée
-    const isStillValid = new Date(organization.subscription.endDate) > new Date();
-    await prisma.subscription.update({
-      where: { organizationId: id },
-      data: { status: isStillValid ? 'active' : 'expired' },
-    });
+    const isStillValid = new Date(subscription.endDate) > new Date();
+    await db.update(subscriptions).set({ status: isStillValid ? 'active' : 'expired' }).where(eq(subscriptions.organizationId, id));
   }
 
   // Journalisation d'audit

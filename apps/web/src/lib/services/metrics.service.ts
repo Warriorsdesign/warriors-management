@@ -1,9 +1,13 @@
-import { adminPrisma } from '@/lib/db/admin';
+import { count, desc, eq, sum } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { auditLogs, centers, organizations, platformPayments, students, subscriptions, users } from '@/lib/db/schema';
+
+async function tableCount(table: typeof organizations | typeof centers | typeof users | typeof students, condition?: ReturnType<typeof eq>) {
+  const [row] = await db.select({ count: count() }).from(table).where(condition);
+  return row?.count ?? 0;
+}
 
 export const metricsService = {
-  /**
-   * Récupère les métriques globales pour le dashboard super admin
-   */
   async getGlobalMetrics() {
     const [
       totalOrganizations,
@@ -13,118 +17,79 @@ export const metricsService = {
       totalUsers,
       totalStudents,
       subscriptionsStats,
-      recentOrganizations,
+      organizationRows,
       recentAuditLogs,
       monthlyOrgRegistrations,
-      revenueResult,
+      revenueRows,
     ] = await Promise.all([
-      // 1. Total organisations
-      adminPrisma.organization.count(),
-
-      // 2. Organisations actives
-      adminPrisma.organization.count({ where: { status: 'actif' } }),
-
-      // 3. Organisations suspendues
-      adminPrisma.organization.count({ where: { status: 'suspendu' } }),
-
-      // 4. Total centres
-      adminPrisma.center.count(),
-
-      // 5. Total utilisateurs
-      adminPrisma.user.count(),
-
-      // 6. Total apprenants
-      adminPrisma.student.count(),
-
-      // 7. Stats abonnements
-      adminPrisma.subscription.groupBy({
-        by: ['status'],
-        _count: { _all: true },
-      }),
-
-      // 8. Dernières organisations créées
-      adminPrisma.organization.findMany({
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          createdAt: true,
-          _count: {
-            select: {
-              centers: true,
-              users: true,
-              students: true,
-            },
-          },
-        },
-      }),
-
-      // 9. Derniers logs d'audit
-      adminPrisma.auditLog.findMany({
-        take: 6,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          actorEmail: true,
-          actorName: true,
-          action: true,
-          resource: true,
-          resourceId: true,
-          createdAt: true,
-        },
-      }),
-
-      // 10. Inscriptions par mois (6 derniers mois)
-      adminPrisma.organization.findMany({
-        select: { createdAt: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-
-      // 11. Chiffre d'Affaires
-      adminPrisma.platformPayment.aggregate({
-        _sum: { amount: true },
-        where: { status: 'COMPLETED' },
-      }),
+      tableCount(organizations),
+      tableCount(organizations, eq(organizations.status, 'actif')),
+      tableCount(organizations, eq(organizations.status, 'suspendu')),
+      tableCount(centers),
+      tableCount(users),
+      tableCount(students),
+      db.select({ status: subscriptions.status, count: count() }).from(subscriptions).groupBy(subscriptions.status),
+      db.select({
+        id: organizations.id,
+        name: organizations.name,
+        email: organizations.email,
+        status: organizations.status,
+        createdAt: organizations.createdAt,
+      }).from(organizations).orderBy(desc(organizations.createdAt)).limit(5),
+      db.select({
+        id: auditLogs.id,
+        actorEmail: auditLogs.actorEmail,
+        actorName: auditLogs.actorName,
+        action: auditLogs.action,
+        resource: auditLogs.resource,
+        resourceId: auditLogs.resourceId,
+        createdAt: auditLogs.createdAt,
+      }).from(auditLogs).orderBy(desc(auditLogs.createdAt)).limit(6),
+      db.select({ createdAt: organizations.createdAt }).from(organizations).orderBy(organizations.createdAt),
+      db.select({ amount: sum(platformPayments.amount) }).from(platformPayments)
+        .where(eq(platformPayments.status, 'COMPLETED')),
     ]);
 
-    // Agréger les abonnements par statut
-    const subsMap: Record<string, number> = {
-      active: 0,
-      trial: 0,
-      expired: 0,
-      suspended: 0,
-    };
-    subscriptionsStats.forEach((s) => {
-      subsMap[s.status] = s._count._all;
-    });
+    const recentIds = organizationRows.map((org) => org.id);
+    const [centerCounts, userCounts, studentCounts] = recentIds.length
+      ? await Promise.all([
+          db.select({ organizationId: centers.organizationId, count: count() }).from(centers)
+            .groupBy(centers.organizationId),
+          db.select({ organizationId: users.organizationId, count: count() }).from(users)
+            .groupBy(users.organizationId),
+          db.select({ organizationId: students.organizationId, count: count() }).from(students)
+            .groupBy(students.organizationId),
+        ])
+      : [[], [], []];
+    const countMap = (rows: { organizationId: string | null; count: number }[]) =>
+      new Map(rows.map((row) => [row.organizationId, row.count]));
+    const centersByOrg = countMap(centerCounts);
+    const usersByOrg = countMap(userCounts);
+    const studentsByOrg = countMap(studentCounts);
+    const recentOrganizations = organizationRows.map((org) => ({
+      ...org,
+      _count: {
+        centers: centersByOrg.get(org.id) ?? 0,
+        users: usersByOrg.get(org.id) ?? 0,
+        students: studentsByOrg.get(org.id) ?? 0,
+      },
+    }));
 
-    // Calculer l'évolution mensuelle des inscriptions
+    const subsMap: Record<string, number> = { active: 0, trial: 0, expired: 0, suspended: 0 };
+    for (const row of subscriptionsStats) subsMap[row.status] = row.count;
+
     const monthsMap: Record<string, number> = {};
     const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    
-    // Initialiser les 6 derniers mois
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
-      monthsMap[key] = 0;
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthsMap[`${monthNames[date.getMonth()]} ${date.getFullYear().toString().slice(2)}`] = 0;
     }
-
-    monthlyOrgRegistrations.forEach((org) => {
-      const d = new Date(org.createdAt);
-      const key = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(2)}`;
-      if (monthsMap[key] !== undefined) {
-        monthsMap[key]++;
-      }
-    });
-
-    const chartData = Object.entries(monthsMap).map(([month, count]) => ({
-      month,
-      organizations: count,
-    }));
+    for (const org of monthlyOrgRegistrations) {
+      const date = new Date(org.createdAt);
+      const key = `${monthNames[date.getMonth()]} ${date.getFullYear().toString().slice(2)}`;
+      if (monthsMap[key] !== undefined) monthsMap[key]++;
+    }
 
     return {
       kpis: {
@@ -135,11 +100,11 @@ export const metricsService = {
         totalUsers,
         totalStudents,
         subscriptions: subsMap,
-        totalRevenue: revenueResult._sum.amount || 0,
+        totalRevenue: Number(revenueRows[0]?.amount ?? 0),
       },
       recentOrganizations,
       recentAuditLogs,
-      growthChart: chartData,
+      growthChart: Object.entries(monthsMap).map(([month, count]) => ({ month, organizations: count })),
     };
-  }
+  },
 };

@@ -7,55 +7,49 @@ import { updateStudentSchema } from '@/lib/validation/students';
 import { redactStudentFinance } from '@/lib/business/studentFinance';
 import { assertCanMoveToClass } from '@/lib/business/studentClass';
 import { withLiveStatus } from '@/lib/business/paymentSchedule';
+import { students, classGroups, formations, centers, paymentSchedules, payments } from '@/lib/db/schema';
+import { and, eq, desc } from 'drizzle-orm';
+import { ApiError } from '@/lib/api/errors';
 
 type Params = { id: string };
 
 export const GET = withApiRoute<Params>(async (_req, { tx, orgId, scope, perms, params }) => {
-  const level = perms.studentFinance;
-  const { schedules, payments, ...student } = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({
-      where: { id: params.id, organizationId: orgId, ...scope.student() },
-      include: {
-        classGroup: { include: { formation: true, center: true } },
-        schedules: { take: 1 },
-        // Paiements lus uniquement si le rôle peut voir le détail financier.
-        payments: level === 'full' ? { orderBy: { date: 'desc' } } : { take: 0 },
-      },
-    })
-  );
-  const schedule = schedules[0] ? withLiveStatus(schedules[0]) : null;
-  return NextResponse.json({ ...student, ...redactStudentFinance(schedule, payments, level) });
+  const [row] = await tx.select({ student: students, classGroup: classGroups, formation: formations, center: centers }).from(students)
+    .innerJoin(classGroups, eq(classGroups.id, students.classId)).innerJoin(formations, eq(formations.id, classGroups.formationId)).innerJoin(centers, eq(centers.id, classGroups.centerId))
+    .where(and(eq(students.id, params.id), eq(students.organizationId, orgId))).limit(1);
+  const studentRow = await findOrgScopedOrThrow(async () => row);
+  scope.assertCenter(studentRow.center.id);
+  const scheduleRows = await tx.select().from(paymentSchedules).where(eq(paymentSchedules.studentId, studentRow.student.id)).limit(1);
+  const paymentRows = perms.studentFinance === 'full' ? await tx.select().from(payments).where(eq(payments.studentId, studentRow.student.id)).orderBy(desc(payments.date)) : [];
+  const schedule = scheduleRows[0] ? withLiveStatus(scheduleRows[0]) : null;
+  const student = { ...studentRow.student, classGroup: { ...studentRow.classGroup, formation: studentRow.formation, center: studentRow.center } };
+  return NextResponse.json({ ...student, ...redactStudentFinance(schedule, paymentRows, perms.studentFinance) });
 }, { permission: { resource: 'students', action: 'read' } });
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
   const body = updateStudentSchema.parse(await req.json());
-  const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
-  );
-  // Changement de classe via PATCH : la classe cible doit aussi être dans le périmètre.
+  const [row] = await tx.select().from(students).where(and(eq(students.id, params.id), eq(students.organizationId, orgId))).limit(1);
+  const student = await findOrgScopedOrThrow(async () => row);
+  const [studentClass] = await tx.select({ centerId: classGroups.centerId }).from(classGroups).where(and(eq(classGroups.id, student.classId), eq(classGroups.organizationId, orgId))).limit(1);
+  if (!studentClass) throw new ApiError(404, "Classe introuvable.", "NOT_FOUND");
+  scope.assertCenter(studentClass.centerId);
   if (body.classId && body.classId !== student.classId) {
-    const target = await findOrgScopedOrThrow(
-      () => tx.classGroup.findFirst({ where: { id: body.classId, organizationId: orgId, ...scope.classGroup() } }),
-      'Classe introuvable.'
-    );
+    const [targetRow] = await tx.select().from(classGroups).where(and(eq(classGroups.id, body.classId), eq(classGroups.organizationId, orgId))).limit(1);
+    const target = await findOrgScopedOrThrow(async () => targetRow, 'Classe introuvable.');
+    scope.assertCenter(target.centerId);
     await assertCanMoveToClass(tx, student, target);
   }
   const { email, enrollmentDate, ...rest } = body;
-  const updated = await tx.student.update({
-    where: { id: student.id },
-    data: {
-      ...rest,
-      ...(email !== undefined ? { email: email || null } : {}),
-      ...(enrollmentDate !== undefined ? { enrollmentDate: new Date(enrollmentDate) } : {}),
-    },
-  });
+  const [updated] = await tx.update(students).set({ ...rest, ...(email !== undefined ? { email: email || null } : {}), ...(enrollmentDate !== undefined ? { enrollmentDate: new Date(enrollmentDate) } : {}) }).where(eq(students.id, student.id)).returning();
   return NextResponse.json(updated);
 }, { permission: { resource: 'students', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, scope, params }) => {
-  const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.student() } })
-  );
-  await tx.student.delete({ where: { id: student.id } });
+  const [row] = await tx.select().from(students).where(and(eq(students.id, params.id), eq(students.organizationId, orgId))).limit(1);
+  const student = await findOrgScopedOrThrow(async () => row);
+  const [studentClass] = await tx.select({ centerId: classGroups.centerId }).from(classGroups).where(and(eq(classGroups.id, student.classId), eq(classGroups.organizationId, orgId))).limit(1);
+  if (!studentClass) throw new ApiError(404, "Classe introuvable.", "NOT_FOUND");
+  scope.assertCenter(studentClass.centerId);
+  await tx.delete(students).where(eq(students.id, student.id));
   return NextResponse.json({ success: true });
 }, { permission: { resource: 'students', action: 'write' } });

@@ -2,7 +2,7 @@ import { createHash } from 'crypto';
 import type { NextRequest } from 'next/server';
 import { ApiError } from '@/lib/api/errors';
 import type { ImportAnalysisDTO } from '@/lib/api/types';
-import type { TenantClient } from '@/lib/db';
+import type { TenantClient } from '@/lib/db-types';
 import { hasPermission } from '@/lib/auth/permissions';
 import { toText } from './cells';
 import { MAX_FILE_BYTES, parseWorkbook, type ParsedFile } from './workbook';

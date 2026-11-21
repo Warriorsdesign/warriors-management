@@ -5,6 +5,8 @@ import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
 import { changePasswordSchema } from '@/lib/validation/users';
 import { postLoginRedirect, setAuthCookie } from '@/lib/auth/session';
+import { users } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * Changement de son propre mot de passe (Mon Profil, ou changement obligatoire d'un mot de passe
@@ -13,9 +15,8 @@ import { postLoginRedirect, setAuthCookie } from '@/lib/auth/session';
  */
 export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   const body = changePasswordSchema.parse(await req.json());
-  const self = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: userId, organizationId: orgId } })
-  );
+  const [selfRow] = await tx.select().from(users).where(and(eq(users.id, userId), eq(users.organizationId, orgId))).limit(1);
+  const self = await findOrgScopedOrThrow(async () => selfRow);
 
   const isCurrentValid = await bcrypt.compare(body.currentPassword, self.passwordHash);
   if (!isCurrentValid) {
@@ -26,7 +27,7 @@ export const POST = withApiRoute(async (req, { tx, orgId, userId }) => {
   }
 
   const passwordHash = await bcrypt.hash(body.newPassword, 10);
-  await tx.user.update({ where: { id: self.id }, data: { passwordHash, mustChangePassword: false } });
+  await tx.update(users).set({ passwordHash, mustChangePassword: false }).where(eq(users.id, self.id));
 
   const redirectTo = await postLoginRedirect(tx, orgId, self.roles);
   const response = NextResponse.json({ success: true, redirectTo });

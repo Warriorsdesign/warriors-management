@@ -1,4 +1,5 @@
 "use client"
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,7 +9,6 @@ import {
   CreditCard,
   Receipt,
   Settings,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Layers,
@@ -105,8 +105,8 @@ export function Sidebar() {
           <div className={cn("h-16 flex items-center border-b border-border", isSidebarCollapsed ? "justify-center px-0" : "px-6")}>
             <div className={cn("flex items-center overflow-hidden", isSidebarCollapsed ? "justify-center" : "gap-3 w-full")}>
               {organization?.logoUrl ? (
-                <div className="w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-white">
-                  <img key={organization.logoUrl} src={organization.logoUrl} alt="Logo" className="w-full h-full object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                <div className="relative w-8 h-8 rounded overflow-hidden flex-shrink-0 bg-white">
+                  <Image key={organization.logoUrl} src={organization.logoUrl} alt="Logo" fill unoptimized className="object-contain" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                 </div>
               ) : (
                 <div className="w-8 h-8 bg-primary rounded flex items-center justify-center text-primary-foreground font-bold text-xs flex-shrink-0">

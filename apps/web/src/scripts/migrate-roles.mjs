@@ -1,15 +1,22 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 function walkDir(dir, callback) {
   fs.readdirSync(dir).forEach(f => {
     const dirPath = path.join(dir, f);
     const isDirectory = fs.statSync(dirPath).isDirectory();
-    isDirectory ? walkDir(dirPath, callback) : callback(dirPath);
+    if (isDirectory) {
+      walkDir(dirPath, callback);
+    } else {
+      callback(dirPath);
+    }
   });
 }
 
-const apiDir = path.join(__dirname, '../app/api');
+const apiDir = path.join(scriptDirectory, '../app/api');
 
 walkDir(apiDir, (filePath) => {
   if (filePath.endsWith('.ts')) {

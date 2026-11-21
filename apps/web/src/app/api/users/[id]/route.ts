@@ -6,23 +6,19 @@ import { findOrgScopedOrThrow, assertOrgCenters, assertOrgRoles } from '@/lib/db
 import { ApiError } from '@/lib/api/errors';
 import { updateUserSchema } from '@/lib/validation/users';
 import { assertCanAssignRoles } from '@/lib/auth/permissions';
+import { users, centerUsers, centers } from '@/lib/db/schema';
+import { and, eq, count, sql } from 'drizzle-orm';
 
 type Params = { id: string };
 
-const SAFE_SELECT = {
-  id: true, matricule: true, firstName: true, lastName: true, email: true,
-  roles: true, status: true, avatarUrl: true,
-  centers: { select: { id: true, name: true } },
-} as const;
-
 export const GET = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, params }) => {
-  const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({
-      where: { id: params.id, organizationId: orgId, ...scope.user(userId) },
-      select: { ...SAFE_SELECT, centers: { where: scope.center(), select: { id: true, name: true } } },
-    })
-  );
-  return NextResponse.json(user);
+  const [row] = await tx.select().from(users).where(and(eq(users.id, params.id), eq(users.organizationId, orgId))).limit(1);
+  const user = await findOrgScopedOrThrow(async () => row);
+  const links = await tx.select({ id: centers.id, name: centers.name }).from(centerUsers).innerJoin(centers, eq(centers.id, centerUsers.centerId)).where(eq(centerUsers.userId, user.id));
+  const visible = scope.centerIds === null ? links : links.filter((center) => scope.centerIds!.includes(center.id));
+  if (scope.centerIds !== null && visible.length === 0 && user.id !== userId) throw new ApiError(404, "Utilisateur introuvable.", "NOT_FOUND");
+  const response = { id: user.id, matricule: user.matricule, firstName: user.firstName, lastName: user.lastName, email: user.email, roles: user.roles, status: user.status, avatarUrl: user.avatarUrl, centers: visible };
+  return NextResponse.json(response);
 }, { permission: { resource: 'users', action: 'read' } });
 
 /**
@@ -38,11 +34,19 @@ function assertNotSelf(targetId: string, userId: string, action: string): void {
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, perms, params }) => {
   assertNotSelf(params.id, userId, 'modifier');
   const body = updateUserSchema.parse(await req.json());
-  const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
-  );
+  const [row] = await tx.select().from(users).where(and(eq(users.id, params.id), eq(users.organizationId, orgId))).limit(1);
+  const user = await findOrgScopedOrThrow(async () => row);
+
+  if (scope.centerIds !== null) {
+    const targetLinks = await tx.select({ centerId: centerUsers.centerId }).from(centerUsers).where(eq(centerUsers.userId, user.id));
+    if (!targetLinks.some((link) => scope.centerIds!.includes(link.centerId))) throw new ApiError(404, "Utilisateur introuvable.", "NOT_FOUND");
+  }
 
   // Un non-administrateur ne gère que des comptes dont les droits n'excèdent pas les siens.
+  if (scope.centerIds !== null) {
+    const targetLinks = await tx.select({ centerId: centerUsers.centerId }).from(centerUsers).where(eq(centerUsers.userId, user.id));
+    if (!targetLinks.some((link) => scope.centerIds!.includes(link.centerId))) throw new ApiError(404, "Utilisateur introuvable.", "NOT_FOUND");
+  }
   await assertCanAssignRoles(tx, orgId, perms, user.roles);
   if (body.roles !== undefined) await assertCanAssignRoles(tx, orgId, perms, body.roles);
 
@@ -52,9 +56,8 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
 
   // Vérification de l'auto-lockout (empêcher de retirer le dernier ADMIN)
   if (body.roles !== undefined && !body.roles.includes('ADMIN') && user.roles.includes('ADMIN')) {
-    const adminCount = await tx.user.count({
-      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
-    });
+    const [adminRow] = await tx.select({ value: count() }).from(users).where(and(eq(users.organizationId, orgId), sql`${users.roles} @> ARRAY['ADMIN']::text[]`, eq(users.status, 'actif')));
+    const adminCount = Number(adminRow?.value ?? 0);
     if (adminCount <= 1) {
       throw new ApiError(403, 'Impossible de retirer le rôle ADMIN. Vous êtes le dernier administrateur actif.', 'LAST_ADMIN');
     }
@@ -62,9 +65,8 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
 
   // Empêcher la désactivation du dernier ADMIN
   if (body.status === 'inactif' && user.status === 'actif' && user.roles.includes('ADMIN')) {
-    const adminCount = await tx.user.count({
-      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
-    });
+    const [adminRow] = await tx.select({ value: count() }).from(users).where(and(eq(users.organizationId, orgId), sql`${users.roles} @> ARRAY['ADMIN']::text[]`, eq(users.status, 'actif')));
+    const adminCount = Number(adminRow?.value ?? 0);
     if (adminCount <= 1) {
       throw new ApiError(403, 'Impossible de désactiver le dernier administrateur actif.', 'LAST_ADMIN');
     }
@@ -76,36 +78,37 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
     scope.assertAssignableCenters(body.centerIds);
   }
 
-  const { centerIds, matricule: _ignored, ...rest } = body;
-
-  const updated = await tx.user.update({
-    where: { id: user.id },
-    data: {
-      ...rest,
-      ...(centerIds !== undefined ? { centers: { set: centerIds.map((id) => ({ id })) } } : {}),
-    },
-    select: SAFE_SELECT,
+  const { centerIds, ...rest } = body;
+  const [updated] = await tx.update(users).set(rest).where(eq(users.id, user.id)).returning({
+    id: users.id, matricule: users.matricule, firstName: users.firstName, lastName: users.lastName,
+    email: users.email, roles: users.roles, status: users.status, avatarUrl: users.avatarUrl,
   });
+  if (centerIds !== undefined) {
+    await tx.delete(centerUsers).where(eq(centerUsers.userId, user.id));
+    await Promise.all(centerIds.map((centerId) => tx.insert(centerUsers).values({ centerId, userId: user.id })));
+  }
   return NextResponse.json(updated);
 }, { permission: { resource: 'users', action: 'write' } });
 
 export const DELETE = withApiRoute<Params>(async (_req, { tx, orgId, userId, scope, perms, params }) => {
   assertNotSelf(params.id, userId, 'supprimer');
-  const user = await findOrgScopedOrThrow(() =>
-    tx.user.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.user(userId) } })
-  );
+  const [row] = await tx.select().from(users).where(and(eq(users.id, params.id), eq(users.organizationId, orgId))).limit(1);
+  const user = await findOrgScopedOrThrow(async () => row);
+  if (scope.centerIds !== null) {
+    const targetLinks = await tx.select({ centerId: centerUsers.centerId }).from(centerUsers).where(eq(centerUsers.userId, user.id));
+    if (!targetLinks.some((link) => scope.centerIds!.includes(link.centerId))) throw new ApiError(404, "Utilisateur introuvable.", "NOT_FOUND");
+  }
   await assertCanAssignRoles(tx, orgId, perms, user.roles);
 
   // Empêcher la suppression du dernier ADMIN
   if (user.roles.includes('ADMIN') && user.status === 'actif') {
-    const adminCount = await tx.user.count({
-      where: { organizationId: orgId, roles: { has: 'ADMIN' }, status: 'actif' },
-    });
+    const [adminRow] = await tx.select({ value: count() }).from(users).where(and(eq(users.organizationId, orgId), sql`${users.roles} @> ARRAY['ADMIN']::text[]`, eq(users.status, 'actif')));
+    const adminCount = Number(adminRow?.value ?? 0);
     if (adminCount <= 1) {
       throw new ApiError(403, 'Impossible de supprimer le dernier administrateur actif.', 'LAST_ADMIN');
     }
   }
 
-  await tx.user.delete({ where: { id: user.id } });
+  await tx.delete(users).where(eq(users.id, user.id));
   return NextResponse.json({ success: true });
 }, { permission: { resource: 'users', action: 'write' } });

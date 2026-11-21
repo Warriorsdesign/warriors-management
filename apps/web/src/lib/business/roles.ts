@@ -1,4 +1,6 @@
-import type { TenantClient } from '@/lib/db';
+import { and, eq } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { rolePermissions, roles, users } from '@/lib/db/schema';
 import { ApiError } from '@/lib/api/errors';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 import { ROLES } from '@/lib/auth/roles';
@@ -69,22 +71,23 @@ export function inputToGrants(rows: { resource: string; canRead: boolean; canWri
 
 /** Nombre d'utilisateurs de l'organisation par nom de rôle. */
 export async function countUsersByRole(tx: TenantClient, orgId: string): Promise<Map<string, number>> {
-  const users = await tx.user.findMany({ where: { organizationId: orgId }, select: { roles: true } });
+  const userRows = await tx.select({ roles: users.roles }).from(users).where(eq(users.organizationId, orgId));
   const counts = new Map<string, number>();
-  for (const u of users) for (const r of u.roles) counts.set(r, (counts.get(r) ?? 0) + 1);
+  for (const u of userRows) for (const r of u.roles) counts.set(r, (counts.get(r) ?? 0) + 1);
   return counts;
 }
 
 /** Rôle modifiable de l'organisation (404 si inconnu ou d'une autre organisation, 403 pour ADMIN). */
 export async function findEditableRole(tx: TenantClient, orgId: string, roleId: string) {
-  const role = await tx.role.findUnique({ where: { id: roleId }, include: { permissions: true } });
+  const [role] = await tx.select().from(roles).where(eq(roles.id, roleId)).limit(1);
   if (!role || (role.organizationId !== orgId && !isAdminRole(role))) {
     throw new ApiError(404, 'Rôle introuvable.', 'NOT_FOUND');
   }
   if (isAdminRole(role)) {
     throw new ApiError(403, 'Le rôle ADMIN a tous les droits et n\'est pas modifiable.', 'ROLE_LOCKED');
   }
-  return role;
+  const permissions = await tx.select().from(rolePermissions).where(eq(rolePermissions.roleId, role.id));
+  return { ...role, permissions };
 }
 
 /** Journal d'audit des modifications de rôles (acteur = administrateur connecté). */
@@ -96,10 +99,8 @@ export async function auditRoleEvent(
   role: { id: string; name: string },
   details: Record<string, unknown> = {}
 ): Promise<void> {
-  const actor = await tx.user.findFirst({
-    where: { id: userId, organizationId: orgId },
-    select: { email: true, firstName: true, lastName: true },
-  });
+  const [actor] = await tx.select({ email: users.email, firstName: users.firstName, lastName: users.lastName })
+    .from(users).where(and(eq(users.id, userId), eq(users.organizationId, orgId))).limit(1);
   await logAuditEvent({
     actorId: userId,
     actorEmail: actor?.email ?? '',

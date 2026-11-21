@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server';
-import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { updateLevelSchema } from '@/lib/validation/formations';
 import { assertFormationEditable, type Level } from '@/lib/business/formations';
+import { formations } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 type Params = { id: string; levelId: string };
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params }) => {
   const body = updateLevelSchema.parse(await req.json());
-  const formation = await findOrgScopedOrThrow(() =>
-    tx.formation.findFirst({ where: { id: params.id, organizationId: orgId, ...scope.formation() } })
-  );
+  const [row] = await tx.select().from(formations).where(and(eq(formations.id, params.id), eq(formations.organizationId, orgId))).limit(1);
+  const formation = await findOrgScopedOrThrow(async () => row);
   await assertFormationEditable(tx, formation.id, scope);
 
   const levels = (formation.levels as Level[] | null) ?? [];
@@ -21,9 +21,6 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, scope, params
   }
   const updatedLevels = levels.map((l) => (l.id === params.levelId ? { ...l, name: body.name } : l));
 
-  const updated = await tx.formation.update({
-    where: { id: formation.id },
-    data: { levels: updatedLevels as unknown as Prisma.InputJsonValue },
-  });
+  const [updated] = await tx.update(formations).set({ levels: updatedLevels }).where(eq(formations.id, formation.id)).returning();
   return NextResponse.json(updated);
 }, { permission: { resource: 'formations', action: 'write' } });

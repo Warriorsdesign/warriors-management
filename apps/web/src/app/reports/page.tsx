@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Trophy, AlertCircle, BookOpen, TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, Activity, DollarSign, PieChart as PieChartIcon, Target, Scale, Minus, ListOrdered } from "lucide-react";
+import { Users, Trophy, AlertCircle, BookOpen, TrendingUp, Wallet, Activity, DollarSign, PieChart as PieChartIcon, Target, Scale, ListOrdered } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -15,7 +15,8 @@ import {
   Area,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  type TooltipValueType,
 } from "recharts";
 import { useReportsSummary, useFormationReports, useFinanceSeries } from "@/lib/hooks/useReports";
 import { useDashboardStats } from "@/lib/hooks/useDashboardStats";
@@ -23,6 +24,11 @@ import { useUIStore } from "@/lib/store/useUIStore";
 import { DatePicker } from "@/components/ui/date-picker";
 import { KpiCardSkeleton, ChartSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
+
+function toTooltipNumber(value: TooltipValueType | undefined): number {
+  const scalar = Array.isArray(value) ? value[0] : value;
+  return typeof scalar === "number" ? scalar : Number(scalar ?? 0);
+}
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("Vue générale");
@@ -220,7 +226,7 @@ export default function ReportsPage() {
                   <TrendingUp className="w-4 h-4 text-foreground" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground text-sm">Vue d'ensemble financière</h3>
+                  <h3 className="font-semibold text-foreground text-sm">Vue d’ensemble financière</h3>
                   <p className="text-xs text-muted-foreground">Revenus et dépenses sur la période</p>
                 </div>
               </div>
@@ -241,7 +247,7 @@ export default function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                       <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 12 }} tickFormatter={(val) => `${val / 1000000}M`} />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: any) => formatCurrency(value)} />
+                      <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value) => formatCurrency(toTooltipNumber(value))} />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
                       <Area type="monotone" dataKey="Revenus" stroke={colors.emerald} fillOpacity={1} fill="url(#colorRevenus)" strokeWidth={2} />
                       <Area type="monotone" dataKey="Dépenses" stroke={colors.rose} fillOpacity={1} fill="url(#colorDepenses)" strokeWidth={2} />
@@ -282,7 +288,7 @@ export default function ReportsPage() {
                       </Pie>
                       <Tooltip
                         contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(value: any) => [`${value} étudiants`, '']}
+                        formatter={(value) => [`${value ?? 0} étudiants`, '']}
                       />
                       <Legend
                         layout="vertical"
@@ -309,7 +315,7 @@ export default function ReportsPage() {
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Plus d'étudiants</p>
+                  <p className="text-sm font-medium text-muted-foreground">Plus d’étudiants</p>
                   <h3 className="text-2xl font-bold text-foreground mt-2">{maxStudentsFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
                     {Math.max(0, maxStudentsFormation.count)} étudiants
@@ -324,7 +330,7 @@ export default function ReportsPage() {
             <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Moins d'inscrits</p>
+                  <p className="text-sm font-medium text-muted-foreground">Moins d’inscrits</p>
                   <h3 className="text-2xl font-bold text-foreground mt-2">{minStudentsFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
                     {minStudentsFormation.count} étudiants
@@ -357,7 +363,7 @@ export default function ReportsPage() {
                   <p className="text-sm font-medium text-muted-foreground">Turnover le plus élevé</p>
                   <h3 className="text-2xl font-bold text-foreground mt-2">{maxDropoutFormation.name}</h3>
                   <p className="text-sm font-medium text-muted-foreground mt-1">
-                    {Math.round(Math.max(0, maxDropoutFormation.rate) * 100)}% d'abandons
+                    {Math.round(Math.max(0, maxDropoutFormation.rate) * 100)}% d’abandons
                   </p>
                 </div>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
@@ -376,7 +382,7 @@ export default function ReportsPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground text-sm">Étudiants par formation</h3>
-                  <p className="text-xs text-muted-foreground">Nombre total d'inscrits par programme</p>
+                  <p className="text-xs text-muted-foreground">Nombre total d’inscrits par programme</p>
                 </div>
               </div>
               <div className="h-[300px] w-full">
@@ -542,7 +548,7 @@ export default function ReportsPage() {
                       <Tooltip
                         cursor={{ fill: 'transparent' }}
                         contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(value: any) => formatCurrency(value)}
+                        formatter={(value) => formatCurrency(toTooltipNumber(value))}
                       />
                       <Legend
                         iconType="circle"
@@ -587,7 +593,7 @@ export default function ReportsPage() {
                       </Pie>
                       <Tooltip
                         contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(value: any) => [formatCurrency(value), '']}
+                        formatter={(value) => [formatCurrency(toTooltipNumber(value)), '']}
                       />
                       <Legend
                         layout="vertical"

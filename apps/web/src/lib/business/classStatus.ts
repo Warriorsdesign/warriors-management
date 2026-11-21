@@ -1,4 +1,6 @@
-import type { TenantClient } from '@/lib/db';
+import { and, eq, ne, notInArray, sql } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { students } from '@/lib/db/schema';
 import { ApiError } from '@/lib/api/errors';
 
 export type ClassStatus = 'ouverte' | 'complete' | 'cloturee';
@@ -22,9 +24,12 @@ export function isActiveStatus(status: string): boolean {
 
 /** Port exact de getActiveStudentsForClass (mockData.ts). */
 export async function getActiveStudentsForClass(tx: TenantClient, classId: string, excludeStudentId?: string): Promise<number> {
-  return tx.student.count({
-    where: { classId, currentStatus: { notIn: INACTIVE_STATUSES }, ...(excludeStudentId ? { id: { not: excludeStudentId } } : {}) },
-  });
+  const [result] = await tx.select({ count: sql<number>`count(*)::int` }).from(students).where(and(
+    eq(students.classId, classId),
+    notInArray(students.currentStatus, INACTIVE_STATUSES),
+    ...(excludeStudentId ? [ne(students.id, excludeStudentId)] : []),
+  ));
+  return result?.count ?? 0;
 }
 
 /**

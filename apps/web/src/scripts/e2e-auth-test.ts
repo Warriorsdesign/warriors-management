@@ -2,7 +2,7 @@ async function runTests() {
   const BASE_URL = 'http://localhost:3000';
   console.log("=== DÉBUT DES TESTS D'AUTHENTIFICATION ===");
 
-  async function testLogin(url: string, body: any) {
+  async function testLogin(url: string, body: Record<string, string>) {
     const res = await fetch(`${BASE_URL}${url}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,23 +1,21 @@
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import type { Prisma } from '@prisma/client';
 import { withApiRoute } from '@/lib/api/handler';
 import { findOrgScopedOrThrow } from '@/lib/db/scoped';
 import { ApiError } from '@/lib/api/errors';
 import { changeLevelSchema } from '@/lib/validation/students';
 import type { Level } from '@/lib/business/formations';
+import { students, classGroups, formations } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 type Params = { id: string };
 type ProgressionLog = { id: string; date: string; status: string; level?: string | null; recordedBy: string; reason?: string };
 
 export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope, params }) => {
   const body = changeLevelSchema.parse(await req.json());
-  const student = await findOrgScopedOrThrow(() =>
-    tx.student.findFirst({
-      where: { id: params.id, organizationId: orgId, ...scope.student() },
-      include: { classGroup: { include: { formation: true } } },
-    })
-  );
+  const [studentRow] = await tx.select({ student: students, classGroup: classGroups, formation: formations }).from(students).innerJoin(classGroups, eq(classGroups.id, students.classId)).innerJoin(formations, eq(formations.id, classGroups.formationId)).where(and(eq(students.id, params.id), eq(students.organizationId, orgId))).limit(1);
+  const student = await findOrgScopedOrThrow(async () => studentRow ? { ...studentRow.student, classGroup: { ...studentRow.classGroup, formation: studentRow.formation } } : null);
+  scope.assertCenter(student.classGroup.centerId);
 
   const levels = (student.classGroup.formation.levels as Level[] | null) ?? [];
   if (!student.classGroup.formation.hasLevels || !levels.some((l) => l.id === body.levelId)) {
@@ -34,13 +32,10 @@ export const PATCH = withApiRoute<Params>(async (req, { tx, orgId, userId, scope
     reason: 'Passage au niveau suivant',
   };
 
-  const updated = await tx.student.update({
-    where: { id: student.id },
-    data: {
+  const [updated] = await tx.update(students).set({
       currentLevel: body.levelId,
       currentStatus: 'en_cours',
-      progressionLogs: [newLog, ...existingLogs] as unknown as Prisma.InputJsonValue,
-    },
-  });
+      progressionLogs: [newLog, ...existingLogs],
+  }).where(eq(students.id, student.id)).returning();
   return NextResponse.json(updated);
 }, { permission: { resource: 'students', action: 'write' } });

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { withTenantContext, type TenantClient } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import { withTenantContext } from '@/lib/db';
+import type { TenantClient } from '@/lib/db-types';
+import { organizations, plans, subscriptions } from '@/lib/db/schema';
 import { getRequestContext, type RequestContext } from '@/lib/auth/context';
 import { requireRole } from '@/lib/auth/guards';
 import { loadPermissions, type PermissionSet } from '@/lib/auth/permissions';
@@ -40,18 +43,31 @@ export function withApiRoute<P = Record<string, string>>(
 
       return await withTenantContext(requestCtx.orgId, async (tx) => {
         // Organisation suspendue, essai ou abonnement terminé : accès coupé (Phase 12, 13).
-        const org = await tx.organization.findUnique({
-          where: { id: requestCtx.orgId },
-          select: {
-            status: true,
-            name: true,
-            subscription: { select: { status: true, endDate: true, plan: { select: { price: true } } } },
-          },
-        });
-        if (!org) {
+        const [access] = await tx
+          .select({
+            status: organizations.status,
+            name: organizations.name,
+            subscriptionStatus: subscriptions.status,
+            subscriptionEndDate: subscriptions.endDate,
+            planPrice: plans.price,
+          })
+          .from(organizations)
+          .leftJoin(subscriptions, eq(subscriptions.organizationId, organizations.id))
+          .leftJoin(plans, eq(plans.id, subscriptions.planId))
+          .where(eq(organizations.id, requestCtx.orgId))
+          .limit(1);
+        if (!access) {
           throw new ApiError(403, 'Votre organisation est suspendue. Accès refusé.', 'ORG_SUSPENDED');
         }
-        const block = getAccessBlock(org, org.subscription);
+        const org = { status: access.status, name: access.name };
+        const subscription = access.subscriptionStatus && access.subscriptionEndDate
+          ? {
+              status: access.subscriptionStatus,
+              endDate: access.subscriptionEndDate,
+              plan: access.planPrice === null ? null : { price: access.planPrice },
+            }
+          : null;
+        const block = getAccessBlock(org, subscription);
         if (block) {
           // Un seul code côté client (ORG_SUSPENDED) ; le message précise la raison.
           throw new ApiError(403, block.message, 'ORG_SUSPENDED', { reason: block.code });

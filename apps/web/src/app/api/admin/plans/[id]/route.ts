@@ -1,62 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
-import { adminPrisma } from "@/lib/db/admin";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { plans, subscriptions } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { withAdminRoute } from "@/lib/api/admin-handler";
 
 export const PUT = withAdminRoute(async (req, { params }) => {
   try {
     const { id } = params;
     const body = await req.json();
-    
-    const plan = await adminPrisma.$transaction(async (tx) => {
-      const updatedPlan = await tx.plan.update({
-        where: { id },
-        data: {
-          name: body.name,
-          description: body.description,
-          price: body.price !== undefined ? parseFloat(body.price) : undefined,
-          maxCenters: body.isUnlimitedCenters ? -1 : (body.maxCenters !== undefined ? parseInt(body.maxCenters) : undefined),
-          maxStudents: body.isUnlimitedStudents ? -1 : (body.maxStudents !== undefined ? parseInt(body.maxStudents) : undefined),
-          isUnlimitedCenters: body.isUnlimitedCenters !== undefined ? body.isUnlimitedCenters : undefined,
-          isUnlimitedStudents: body.isUnlimitedStudents !== undefined ? body.isUnlimitedStudents : undefined,
-          isPopular: body.isPopular,
-          features: body.features,
-          unavailableFeatures: body.unavailableFeatures,
-        }
-      });
+
+    const result = await db.transaction(async (tx) => {
+      const values: Partial<typeof plans.$inferInsert> = {};
+      if (body.name !== undefined) values.name = body.name;
+      if (body.description !== undefined) values.description = body.description;
+      if (body.price !== undefined) values.price = parseFloat(body.price);
+      if (body.isUnlimitedCenters !== undefined) values.isUnlimitedCenters = body.isUnlimitedCenters;
+      if (body.isUnlimitedStudents !== undefined) values.isUnlimitedStudents = body.isUnlimitedStudents;
+      if (body.isPopular !== undefined) values.isPopular = body.isPopular;
+      if (body.features !== undefined) values.features = body.features;
+      if (body.unavailableFeatures !== undefined) values.unavailableFeatures = body.unavailableFeatures;
+      if (body.isUnlimitedCenters) values.maxCenters = -1;
+      else if (body.maxCenters !== undefined) values.maxCenters = parseInt(body.maxCenters);
+      if (body.isUnlimitedStudents) values.maxStudents = -1;
+      else if (body.maxStudents !== undefined) values.maxStudents = parseInt(body.maxStudents);
+
+      const [updated] = await tx.update(plans).set(values).where(eq(plans.id, id)).returning();
+      if (!updated) throw Object.assign(new Error('Plan not found'), { code: '23503' });
 
       if (body.maxCenters !== undefined || body.maxStudents !== undefined || body.isUnlimitedCenters !== undefined || body.isUnlimitedStudents !== undefined) {
-        await tx.subscription.updateMany({
-          where: { planId: id, status: 'active' },
-          data: {
-            ...((body.maxCenters !== undefined || body.isUnlimitedCenters !== undefined) && { maxCenters: body.isUnlimitedCenters ? -1 : parseInt(body.maxCenters) }),
-            ...((body.maxStudents !== undefined || body.isUnlimitedStudents !== undefined) && { maxStudents: body.isUnlimitedStudents ? -1 : parseInt(body.maxStudents) }),
-          }
-        });
+        const subscriptionValues: Partial<typeof subscriptions.$inferInsert> = {};
+        if (body.isUnlimitedCenters) subscriptionValues.maxCenters = -1;
+        else if (body.maxCenters !== undefined) subscriptionValues.maxCenters = parseInt(body.maxCenters);
+        if (body.isUnlimitedStudents) subscriptionValues.maxStudents = -1;
+        else if (body.maxStudents !== undefined) subscriptionValues.maxStudents = parseInt(body.maxStudents);
+        await tx.update(subscriptions).set(subscriptionValues).where(and(eq(subscriptions.planId, id), eq(subscriptions.status, 'active')));
       }
-
-      return updatedPlan;
+      return updated;
     });
 
-    return NextResponse.json(plan);
-  } catch (error: any) {
+    return NextResponse.json(result);
+  } catch (error: unknown) {
     console.error(`PUT /api/admin/plans/${params.id} - Erreur:`, error);
-    if (error.code === 'P2025') {
-      return NextResponse.json({ error: "Plan non trouvé" }, { status: 404 });
-    }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 });
 
-export const DELETE = withAdminRoute(async (req, { params }) => {
+export const DELETE = withAdminRoute(async (_req, { params }) => {
   try {
     const { id } = params;
-    await adminPrisma.plan.delete({ where: { id } });
+    await db.delete(plans).where(eq(plans.id, id));
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`DELETE /api/admin/plans/${params.id} - Erreur:`, error);
-    if (error.code === 'P2003') {
-      return NextResponse.json({ error: "Impossible de supprimer ce plan car il est utilisé par des organisations" }, { status: 400 });
-    }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 });

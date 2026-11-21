@@ -68,7 +68,7 @@ export function CreateSuperAdminModal({
         <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 text-xs text-foreground flex items-start gap-2.5">
           <ShieldAlert className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
           <p className="leading-relaxed">
-            Ce compte disposera des droits les plus élevés sur l'ensemble de la plateforme Warriors Management. Il pourra administrer toutes les organisations et piloter les licences.
+            Ce compte disposera des droits les plus élevés sur l’ensemble de la plateforme Warriors Management. Il pourra administrer toutes les organisations et piloter les licences.
           </p>
         </div>
 

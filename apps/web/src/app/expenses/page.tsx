@@ -150,7 +150,7 @@ export default function ExpensesPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Dépenses</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gérez les sorties d'argent.</p>
+          <p className="text-sm text-muted-foreground mt-1">Gérez les sorties d’argent.</p>
         </div>
         {canWrite && (
           <button
@@ -195,7 +195,7 @@ export default function ExpensesPage() {
         {!isLoading && expenses.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucune dépense</h3>
-            <p className="text-sm text-muted-foreground">Il n'y a aucune dépense correspondant à ce filtre.</p>
+            <p className="text-sm text-muted-foreground">Il n’y a aucune dépense correspondant à ce filtre.</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-4 min-h-[250px]">
@@ -408,7 +408,7 @@ export default function ExpensesPage() {
               <Trash2 className="w-8 h-8 text-red-500" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
-              Vous êtes sur le point de supprimer la dépense "<span className="font-semibold text-foreground">{expenseToDelete?.title}</span>".
+              Vous êtes sur le point de supprimer la dépense “<span className="font-semibold text-foreground">{expenseToDelete?.title}</span>”.
               <br />Cette action est <span className="text-destructive font-medium">définitive</span>.
             </p>
           </div>

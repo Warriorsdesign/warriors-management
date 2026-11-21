@@ -210,7 +210,7 @@ export default function FormationsPage() {
         {!isLoading && formations.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="text-lg font-medium text-foreground mb-2">Aucune formation</h3>
-            <p className="text-sm text-muted-foreground">Il n'y a actuellement aucune formation enregistrée.</p>
+            <p className="text-sm text-muted-foreground">Il n’y a actuellement aucune formation enregistrée.</p>
           </div>
         ) : (
           <div className="overflow-x-auto pb-24 min-h-[250px]">

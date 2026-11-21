@@ -7,33 +7,22 @@ import { findOrgScopedOrThrow, assertOrgCenters, assertOrgRoles } from '@/lib/db
 import { createUserSchema } from '@/lib/validation/users';
 import { assertCanAssignRoles } from '@/lib/auth/permissions';
 import { generateUserMatricule, generateRandomPassword } from '@/lib/business/matricule';
+import { users, organizations, centerUsers, centers } from '@/lib/db/schema';
+import { and, eq, ilike, or, asc } from 'drizzle-orm';
 
 export const GET = withApiRoute(async (req, { tx, orgId, userId, scope, searchParams }) => {
   const search = searchParams.get('search')?.trim();
-  const users = await tx.user.findMany({
-    where: {
-      organizationId: orgId,
-      ...scope.user(userId),
-      ...(search
-        ? {
-            OR: [
-              { firstName: { contains: search, mode: 'insensitive' } },
-              { lastName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
-              { matricule: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
-    },
-    select: {
-      id: true, matricule: true, firstName: true, lastName: true, email: true,
-      roles: true, status: true, avatarUrl: true,
-      // Les centres hors périmètre d'un collègue multi-centres ne sont pas révélés.
-      centers: { where: scope.center(), select: { id: true, name: true } },
-    },
-    orderBy: { firstName: 'asc' },
-  });
-  return NextResponse.json({ data: users });
+  const filters = [eq(users.organizationId, orgId)];
+  if (search) filters.push(or(ilike(users.firstName, `%${search}%`), ilike(users.lastName, `%${search}%`), ilike(users.email, `%${search}%`), ilike(users.matricule, `%${search}%`))!);
+  const rows = await tx.select().from(users).where(and(...filters)).orderBy(asc(users.firstName));
+  const usersData = await Promise.all(rows.map(async (user) => {
+    const links = await tx.select({ id: centers.id, name: centers.name }).from(centerUsers).innerJoin(centers, eq(centers.id, centerUsers.centerId)).where(eq(centerUsers.userId, user.id));
+    const visible = scope.centerIds === null ? links : links.filter((center) => scope.centerIds!.includes(center.id));
+    if (scope.centerIds !== null && user.id !== userId && visible.length === 0) return null;
+    return { id: user.id, matricule: user.matricule, firstName: user.firstName, lastName: user.lastName, email: user.email, roles: user.roles, status: user.status, avatarUrl: user.avatarUrl, centers: visible };
+  }));
+  const filteredUsers = usersData.filter((user): user is NonNullable<typeof user> => user !== null);
+  return NextResponse.json({ data: filteredUsers });
 }, { permission: { resource: 'users', action: 'read' } });
 
 export const POST = withApiRoute(async (req, { tx, orgId, scope, perms }) => {
@@ -43,31 +32,17 @@ export const POST = withApiRoute(async (req, { tx, orgId, scope, perms }) => {
   await assertOrgCenters(tx, orgId, body.centerIds);
   scope.assertAssignableCenters(body.centerIds);
 
-  const organization = await findOrgScopedOrThrow(() =>
-    tx.organization.findFirst({ where: { id: orgId }, select: { name: true } })
-  );
+  const [orgRow] = await tx.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+  const organization = await findOrgScopedOrThrow(async () => orgRow);
   const matricule = await generateUserMatricule(organization.name);
   const provisionalPassword = generateRandomPassword();
   const passwordHash = await bcrypt.hash(provisionalPassword, 10);
 
-  const user = await tx.user.create({
-    data: {
-      firstName: body.firstName,
-      lastName: body.lastName,
-      email: body.email,
-      roles: body.roles,
-      status: body.status,
-      matricule,
-      passwordHash,
-      mustChangePassword: true, // mot de passe provisoire : changement exigé à la première connexion
-      organizationId: orgId,
-      centers: { connect: body.centerIds.map((id) => ({ id })) },
-    },
-    select: {
-      id: true, matricule: true, firstName: true, lastName: true, email: true,
-      roles: true, status: true, avatarUrl: true,
-    },
-  });
+  const [user] = await tx.insert(users).values({
+      firstName: body.firstName, lastName: body.lastName, email: body.email, roles: body.roles,
+      status: body.status, matricule, passwordHash, mustChangePassword: true, organizationId: orgId,
+    }).returning({ id: users.id, matricule: users.matricule, firstName: users.firstName, lastName: users.lastName, email: users.email, roles: users.roles, status: users.status, avatarUrl: users.avatarUrl });
+    await Promise.all(body.centerIds.map((centerId) => tx.insert(centerUsers).values({ centerId, userId: user.id })));
 
   return NextResponse.json({ user, provisionalPassword }, { status: 201 });
 }, { permission: { resource: 'users', action: 'write' } });

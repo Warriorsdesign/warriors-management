@@ -1,9 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MoreVertical, Edit2, Trash2, X, Mail, Phone, MoreHorizontal, User as UserIcon, Copy, ShieldAlert, KeyRound } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, X, Mail, MoreHorizontal, User as UserIcon, Copy, ShieldAlert, KeyRound } from 'lucide-react';
 import { useUsers, createUser, updateUser, deleteUser, resetUserPassword } from '@/lib/hooks/useUsers';
 import { useCenters } from '@/lib/hooks/useCenters';
 import { useCan, useSession } from '@/lib/hooks/useSession';
@@ -203,7 +204,7 @@ export default function UsersPage() {
       <div className="flex flex-col items-center justify-center py-24 text-center gap-3">
         <ShieldAlert className="w-10 h-10 text-muted-foreground" />
         <h2 className="text-lg font-semibold text-foreground">Accès refusé</h2>
-        <p className="text-sm text-muted-foreground max-w-sm">Vous n'avez pas les droits nécessaires pour consulter cette page.</p>
+        <p className="text-sm text-muted-foreground max-w-sm">Vous n’avez pas les droits nécessaires pour consulter cette page.</p>
       </div>
     );
   }
@@ -336,9 +337,9 @@ export default function UsersPage() {
               )}
 
               {/* Avatar */}
-              <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4 overflow-hidden shadow-sm">
+              <div className="relative w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4 overflow-hidden shadow-sm">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  <Image src={user.avatarUrl} alt="Avatar" fill unoptimized className="object-cover" />
                 ) : (
                   <UserIcon className="w-10 h-10 text-slate-400" />
                 )}
@@ -534,7 +535,7 @@ export default function UsersPage() {
                   </label>
                 ))}
                 {centers.length === 0 && (
-                  <p className="text-xs text-muted-foreground col-span-full">Aucun centre disponible. Veuillez d'abord créer un centre.</p>
+                  <p className="text-xs text-muted-foreground col-span-full">Aucun centre disponible. Veuillez d’abord créer un centre.</p>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -579,7 +580,7 @@ export default function UsersPage() {
               <Trash2 className="w-8 h-8 text-red-500" />
             </div>
             <p className="text-sm text-muted-foreground max-w-sm">
-              Vous êtes sur le point de supprimer l'utilisateur <span className="font-semibold text-foreground">{editingUser?.firstName} {editingUser?.lastName}</span>.
+              Vous êtes sur le point de supprimer l’utilisateur <span className="font-semibold text-foreground">{editingUser?.firstName} {editingUser?.lastName}</span>.
               <br />Cette action est <span className="text-destructive font-medium">définitive</span> et supprimera toutes les données associées.
             </p>
           </div>

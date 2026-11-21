@@ -99,7 +99,7 @@ export default function AdminDashboardPage() {
           Erreur lors du chargement des statistiques
         </h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Impossible de contacter le service d'agrégation d'administration.
+          Impossible de contacter le service d&apos;agrégation d&apos;administration.
         </p>
       </div>
     );
@@ -116,7 +116,7 @@ export default function AdminDashboardPage() {
             Vue Consolidée de la Plateforme
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Gérez l'ensemble des {kpis.totalOrganizations} organisations clientes réparties sur {kpis.totalCenters} centres.
+            Gérez l&apos;ensemble des {kpis.totalOrganizations} organisations clientes réparties sur {kpis.totalCenters} centres.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -132,7 +132,7 @@ export default function AdminDashboardPage() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-all"
           >
             <Clock className="w-3.5 h-3.5" />
-            <span>Journal d'Audit</span>
+            <span>Journal d&apos;Audit</span>
           </Link>
         </div>
       </div>
@@ -222,7 +222,7 @@ export default function AdminDashboardPage() {
         <div className="p-5 rounded-xl bg-card border border-border shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Chiffre d'Affaires
+              Chiffre d&apos;Affaires
             </span>
             <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
               <CreditCard className="w-5 h-5" />
@@ -247,7 +247,7 @@ export default function AdminDashboardPage() {
               Nouvelles Organisations Inscrites (6 derniers mois)
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Dynamique d'adhésion des centres de formation
+              Dynamique d&apos;adhésion des centres de formation
             </p>
           </CardHeader>
           <CardContent className="p-0 h-64 w-full">
@@ -296,7 +296,7 @@ export default function AdminDashboardPage() {
             <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
               <div className="flex items-center gap-2.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                <span className="text-xs font-semibold text-foreground">Période d'Essai (Trial)</span>
+                <span className="text-xs font-semibold text-foreground">Période d&apos;Essai (Trial)</span>
               </div>
               <span className="text-sm font-bold text-foreground">{kpis.subscriptions.trial}</span>
             </div>
@@ -400,7 +400,7 @@ export default function AdminDashboardPage() {
             <div>
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                Journal d'Audit Récent
+                Journal d&apos;Audit Récent
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Dernières opérations sensibles Super Admin
@@ -417,7 +417,7 @@ export default function AdminDashboardPage() {
           <div className="space-y-2.5">
             {recentAuditLogs.length === 0 ? (
               <p className="text-xs text-muted-foreground py-6 text-center">
-                Aucun log d'audit disponible.
+                Aucun log d&apos;audit disponible.
               </p>
             ) : (
               recentAuditLogs.map((log) => (

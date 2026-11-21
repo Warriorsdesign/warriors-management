@@ -1,4 +1,6 @@
-import type { TenantClient } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { classGroups } from '@/lib/db/schema';
 import { ApiError } from '@/lib/api/errors';
 import { assertClassHasRoom, isActiveStatus } from './classStatus';
 
@@ -12,7 +14,8 @@ export async function assertCanMoveToClass(
   student: { id: string; classId: string; currentStatus: string },
   target: { id: string; name: string; capacity: number; status: string; formationId: string }
 ): Promise<void> {
-  const current = await tx.classGroup.findUnique({ where: { id: student.classId }, select: { formationId: true } });
+  const [current] = await tx.select({ formationId: classGroups.formationId })
+    .from(classGroups).where(eq(classGroups.id, student.classId)).limit(1);
   if (current && current.formationId !== target.formationId) {
     throw new ApiError(
       409,

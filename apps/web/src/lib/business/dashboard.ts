@@ -1,5 +1,14 @@
-import type { Prisma } from '@prisma/client';
-import type { TenantClient } from '@/lib/db';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import {
+  classGroups,
+  expenses as expensesTable,
+  formationCenters,
+  formations as formationsTable,
+  payments as paymentsTable,
+  paymentSchedules,
+  students as studentsTable,
+} from '@/lib/db/schema';
 import { withLiveStatus, type Installment } from './paymentSchedule';
 import { dayKey, periodDays, type ResolvedPeriod } from '@/lib/api/periodRange';
 
@@ -20,7 +29,7 @@ export async function getDashboardStats(
   formationIds: string[],
   period: ResolvedPeriod,
   /** Formations visibles dans le périmètre de centres de l'utilisateur (voir CenterScope.formation). */
-  formationScope: Prisma.FormationWhereInput = {},
+  formationScope: string[] | null = null,
   /**
    * Indicateurs financiers autorisés (permission "dashboard.finance"). Sinon, paiements,
    * dépenses et échéanciers ne sont pas lus : tous les montants valent 0, les listes sont vides
@@ -32,29 +41,50 @@ export async function getDashboardStats(
 
   // Note: les dépenses n'ont pas de formation associée (seulement un centre) - le filtre
   // formation ne s'applique donc qu'aux requêtes qui passent par un étudiant/classe.
-  const classGroupFilter = {
-    ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
-    ...(formationIds.length ? { formationId: { in: formationIds } } : {}),
-  };
-  const hasClassGroupFilter = centerIds.length > 0 || formationIds.length > 0;
-  const studentCenterWhere = hasClassGroupFilter ? { classGroup: classGroupFilter } : {};
-  const viaStudentCenterWhere = hasClassGroupFilter ? { student: { classGroup: classGroupFilter } } : {};
+  const classFilters = [
+    ...(centerIds.length ? [inArray(classGroups.centerId, centerIds)] : []),
+    ...(formationIds.length ? [inArray(classGroups.formationId, formationIds)] : []),
+  ];
 
   const [payments, expenses, students, schedules, formations] = await Promise.all([
     includeFinance
-      ? tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere }, orderBy: { date: 'desc' } })
+      ? tx.select({ payment: paymentsTable }).from(paymentsTable)
+          .innerJoin(studentsTable, eq(studentsTable.id, paymentsTable.studentId))
+          .innerJoin(classGroups, eq(classGroups.id, studentsTable.classId))
+          .where(and(eq(paymentsTable.organizationId, orgId), ...classFilters))
+          .orderBy(desc(paymentsTable.date)).then((rows) => rows.map((row) => row.payment))
       : Promise.resolve([]),
     includeFinance
-      ? tx.expense.findMany({ where: { organizationId: orgId, ...(centerIds.length ? { centerId: { in: centerIds } } : {}) } })
+      ? tx.select().from(expensesTable).where(and(
+          eq(expensesTable.organizationId, orgId),
+          ...(centerIds.length ? [inArray(expensesTable.centerId, centerIds)] : []),
+        ))
       : Promise.resolve([]),
-    tx.student.findMany({
-      where: { organizationId: orgId, ...studentCenterWhere },
-      include: { classGroup: { select: { formationId: true, formation: { select: { name: true } } } } },
-    }),
+    tx.select({
+      student: studentsTable,
+      formationId: classGroups.formationId,
+      formationName: formationsTable.name,
+    }).from(studentsTable)
+      .innerJoin(classGroups, eq(classGroups.id, studentsTable.classId))
+      .leftJoin(formationsTable, eq(formationsTable.id, classGroups.formationId))
+      .where(and(eq(studentsTable.organizationId, orgId), ...classFilters))
+      .then((rows) => rows.map((row) => ({
+        ...row.student,
+        classGroup: { formationId: row.formationId, formation: row.formationName ? { name: row.formationName } : null },
+      }))),
     includeFinance
-      ? tx.paymentSchedule.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }).then((rows) => rows.map((r) => withLiveStatus(r)))
+      ? tx.select({ schedule: paymentSchedules }).from(paymentSchedules)
+          .innerJoin(studentsTable, eq(studentsTable.id, paymentSchedules.studentId))
+          .innerJoin(classGroups, eq(classGroups.id, studentsTable.classId))
+          .where(and(eq(paymentSchedules.organizationId, orgId), ...classFilters))
+          .then((rows) => rows.map((row) => withLiveStatus(row.schedule)))
       : Promise.resolve([]),
-    tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
+    formationScope?.length
+      ? tx.selectDistinct({ id: formationsTable.id, name: formationsTable.name }).from(formationsTable)
+          .innerJoin(formationCenters, eq(formationCenters.formationId, formationsTable.id))
+          .where(and(eq(formationsTable.organizationId, orgId), inArray(formationCenters.centerId, formationScope)))
+      : tx.select({ id: formationsTable.id, name: formationsTable.name }).from(formationsTable)
+          .where(eq(formationsTable.organizationId, orgId)),
   ]);
 
   const studentById = new Map(students.map((s) => [s.id, s]));

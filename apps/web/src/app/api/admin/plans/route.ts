@@ -1,15 +1,15 @@
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from "next/server";
-import { adminPrisma } from "@/lib/db/admin";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { plans } from "@/lib/db/schema";
+import { asc } from "drizzle-orm";
 import { withAdminRoute } from "@/lib/api/admin-handler";
 
-export const GET = withAdminRoute(async (req) => {
+export const GET = withAdminRoute(async () => {
   try {
-    const plans = await adminPrisma.plan.findMany({
-      orderBy: { price: 'asc' }
-    });
-    return NextResponse.json(plans);
+    const rows = await db.select().from(plans).orderBy(asc(plans.price));
+    return NextResponse.json(rows);
   } catch (error) {
     console.error("GET /api/admin/plans - Erreur:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
@@ -25,25 +25,23 @@ export const POST = withAdminRoute(async (req) => {
       return NextResponse.json({ error: "Champs requis manquants" }, { status: 400 });
     }
 
-    const plan = await adminPrisma.plan.create({
-      data: {
-        name,
-        description,
-        price: parseFloat(price) || 0,
-        maxCenters: isUnlimitedCenters ? -1 : parseInt(maxCenters),
-        maxStudents: isUnlimitedStudents ? -1 : parseInt(maxStudents),
-        isUnlimitedCenters: !!isUnlimitedCenters,
-        isUnlimitedStudents: !!isUnlimitedStudents,
-        isPopular: !!isPopular,
-        features: features || [],
-        unavailableFeatures: unavailableFeatures || [],
-      },
-    });
+    const [plan] = await db.insert(plans).values({
+      name,
+      description,
+      price: parseFloat(price) || 0,
+      maxCenters: isUnlimitedCenters ? -1 : parseInt(maxCenters),
+      maxStudents: isUnlimitedStudents ? -1 : parseInt(maxStudents),
+      isUnlimitedCenters: !!isUnlimitedCenters,
+      isUnlimitedStudents: !!isUnlimitedStudents,
+      isPopular: !!isPopular,
+      features: features || [],
+      unavailableFeatures: unavailableFeatures || [],
+    }).returning();
 
     return NextResponse.json(plan, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("POST /api/admin/plans - Erreur:", error);
-    if (error.code === 'P2002') {
+    if (error instanceof Error && 'code' in error && (error as Error & { code?: string }).code === '23505') {
       return NextResponse.json({ error: "Un plan avec ce nom existe déjà" }, { status: 400 });
     }
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

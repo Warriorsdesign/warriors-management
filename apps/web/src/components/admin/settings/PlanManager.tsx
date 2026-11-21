@@ -1,15 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Check, X, AlertCircle } from "lucide-react";
+import { Plus, Edit2, Trash2, Check, X } from "lucide-react";
 import { useUIStore } from "@/lib/store/useUIStore";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-
-interface PlanFeatures {
-  available: string[];
-  unavailable: string[];
-}
 
 interface Plan {
   id: string;
@@ -76,8 +71,8 @@ export function PlanManager() {
       setIsEditing(null);
       setFormData({});
       fetchPlans();
-    } catch (error: any) {
-      showToast(error.message, "error");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Erreur inattendue.", "error");
     }
   };
 
@@ -91,8 +86,8 @@ export function PlanManager() {
       }
       showToast("Plan supprimé", "success");
       fetchPlans();
-    } catch (error: any) {
-      showToast(error.message, "error");
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? error.message : "Erreur inattendue.", "error");
     }
   };
 

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { verifyAdminToken } from '@/lib/auth/jwt';
 import { logAuditEvent } from '@/lib/audit/audit-logger';
 
-export async function POST(request: Request) {
-  const token = (request as any).cookies?.get('admin_auth_token')?.value;
+export async function POST(request: NextRequest) {
+  const token = request.cookies.get('admin_auth_token')?.value;
 
   if (token) {
     try {

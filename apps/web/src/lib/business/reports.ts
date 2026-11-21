@@ -1,5 +1,6 @@
-import type { Prisma } from '@prisma/client';
-import type { TenantClient } from '@/lib/db';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import type { TenantClient } from '@/lib/db-types';
+import { classGroups, expenses, formationCenters, formations, payments, students } from '@/lib/db/schema';
 
 const INACTIVE_STATUSES = ['formation_terminee', 'abandonne'];
 
@@ -15,21 +16,29 @@ function inRange(date: Date, range: DateRange): boolean {
 }
 
 export async function getReportsSummary(tx: TenantClient, orgId: string, range: DateRange, centerIds: string[] = []) {
-  const studentCenterWhere = centerIds.length ? { classGroup: { centerId: { in: centerIds } } } : {};
-  const viaStudentCenterWhere = centerIds.length
-    ? { student: { classGroup: { centerId: { in: centerIds } } } }
-    : {};
-
-  const [students, payments, expenses] = await Promise.all([
-    tx.student.findMany({ where: { organizationId: orgId, ...studentCenterWhere } }),
-    tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
-    tx.expense.findMany({ where: { organizationId: orgId, ...(centerIds.length ? { centerId: { in: centerIds } } : {}) } }),
+  const [studentRows, paymentRows, expenseRows] = await Promise.all([
+    centerIds.length
+      ? tx.select({ student: students }).from(students)
+          .innerJoin(classGroups, eq(classGroups.id, students.classId))
+          .where(and(eq(students.organizationId, orgId), inArray(classGroups.centerId, centerIds)))
+          .then((rows) => rows.map((row) => row.student))
+      : tx.select().from(students).where(eq(students.organizationId, orgId)),
+    centerIds.length
+      ? tx.select({ payment: payments }).from(payments)
+          .innerJoin(students, eq(students.id, payments.studentId))
+          .innerJoin(classGroups, eq(classGroups.id, students.classId))
+          .where(and(eq(payments.organizationId, orgId), inArray(classGroups.centerId, centerIds)))
+          .then((rows) => rows.map((row) => row.payment))
+      : tx.select().from(payments).where(eq(payments.organizationId, orgId)),
+    tx.select().from(expenses).where(and(
+      eq(expenses.organizationId, orgId),
+      ...(centerIds.length ? [inArray(expenses.centerId, centerIds)] : []),
+    )),
   ]);
-
-  const totalActiveStudents = students.filter((s) => !INACTIVE_STATUSES.includes(s.currentStatus)).length;
-  const newStudentsInRange = students.filter((s) => inRange(s.enrollmentDate, range)).length;
-  const totalRevenueInRange = payments.filter((p) => inRange(p.date, range)).reduce((s, p) => s + p.amount, 0);
-  const totalExpensesInRange = expenses.filter((e) => inRange(e.date, range)).reduce((s, e) => s + e.amount, 0);
+  const totalActiveStudents = studentRows.filter((s) => !INACTIVE_STATUSES.includes(s.currentStatus)).length;
+  const newStudentsInRange = studentRows.filter((s) => inRange(s.enrollmentDate, range)).length;
+  const totalRevenueInRange = paymentRows.filter((p) => inRange(p.date, range)).reduce((sum, p) => sum + p.amount, 0);
+  const totalExpensesInRange = expenseRows.filter((e) => inRange(e.date, range)).reduce((sum, e) => sum + e.amount, 0);
 
   return {
     totalActiveStudents,
@@ -45,43 +54,49 @@ export async function getFormationReports(
   orgId: string,
   range: DateRange,
   centerIds: string[] = [],
-  formationScope: Prisma.FormationWhereInput = {}
+  formationScope: string[] | null = null
 ) {
-  const studentCenterWhere = centerIds.length ? { classGroup: { centerId: { in: centerIds } } } : {};
-  const viaStudentCenterWhere = centerIds.length
-    ? { student: { classGroup: { centerId: { in: centerIds } } } }
-    : {};
-
-  const [formations, students, payments] = await Promise.all([
-    tx.formation.findMany({ where: { organizationId: orgId, ...formationScope } }),
-    tx.student.findMany({
-      where: { organizationId: orgId, ...studentCenterWhere },
-      include: { classGroup: { select: { formationId: true } } },
-    }),
-    tx.payment.findMany({ where: { organizationId: orgId, ...viaStudentCenterWhere } }),
+  const formationRows = formationScope?.length
+    ? await tx.selectDistinct({ id: formations.id, name: formations.name }).from(formations)
+        .innerJoin(formationCenters, eq(formationCenters.formationId, formations.id))
+        .where(and(eq(formations.organizationId, orgId), inArray(formationCenters.centerId, formationScope)))
+    : await tx.select({ id: formations.id, name: formations.name }).from(formations)
+        .where(eq(formations.organizationId, orgId));
+  const [studentRows, paymentRows] = await Promise.all([
+    tx.select({ student: students, formationId: classGroups.formationId }).from(students)
+      .innerJoin(classGroups, eq(classGroups.id, students.classId))
+      .where(and(
+        eq(students.organizationId, orgId),
+        ...(centerIds.length ? [inArray(classGroups.centerId, centerIds)] : []),
+      )),
+    tx.select({ payment: payments, formationId: classGroups.formationId }).from(payments)
+      .innerJoin(students, eq(students.id, payments.studentId))
+      .innerJoin(classGroups, eq(classGroups.id, students.classId))
+      .where(and(
+        eq(payments.organizationId, orgId),
+        ...(centerIds.length ? [inArray(classGroups.centerId, centerIds)] : []),
+      )),
   ]);
 
-  return formations.map((f) => {
-    const studentsInFormation = students.filter((s) => s.classGroup?.formationId === f.id);
-    const studentIds = new Set(studentsInFormation.map((s) => s.id));
-    const dropoutCount = studentsInFormation.filter((s) => s.currentStatus === 'abandonne').length;
-    const revenueInRange = payments
-      .filter((p) => studentIds.has(p.studentId) && inRange(p.date, range))
-      .reduce((s, p) => s + p.amount, 0);
-
+  return formationRows.map((formation) => {
+    const enrolled = studentRows.filter((row) => row.formationId === formation.id).map((row) => row.student);
+    const studentIds = new Set(enrolled.map((student) => student.id));
+    const dropoutCount = enrolled.filter((student) => student.currentStatus === 'abandonne').length;
+    const revenueInRange = paymentRows
+      .filter((row) => row.formationId === formation.id && studentIds.has(row.payment.studentId) && inRange(row.payment.date, range))
+      .reduce((sum, row) => sum + row.payment.amount, 0);
     return {
-      formationId: f.id,
-      name: f.name,
-      studentCount: studentsInFormation.length,
+      formationId: formation.id,
+      name: formation.name,
+      studentCount: enrolled.length,
       dropoutCount,
-      dropoutRate: studentsInFormation.length > 0 ? dropoutCount / studentsInFormation.length : 0,
+      dropoutRate: enrolled.length > 0 ? dropoutCount / enrolled.length : 0,
       revenueInRange,
     };
   });
 }
 
 function monthKey(date: Date): string {
-  // Composantes locales, cohérentes avec monthLabel - voir dashboard.ts pour le détail du bug évité.
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
@@ -93,19 +108,24 @@ export async function getFinanceSeries(tx: TenantClient, orgId: string, range: D
   const now = new Date();
   const from = range.from ?? new Date(now.getFullYear(), now.getMonth() - 5, 1);
   const to = range.to ?? now;
-  const viaStudentCenterWhere = centerIds.length
-    ? { student: { classGroup: { centerId: { in: centerIds } } } }
-    : {};
-
-  const [payments, expenses] = await Promise.all([
-    tx.payment.findMany({ where: { organizationId: orgId, date: { gte: from, lte: to }, ...viaStudentCenterWhere } }),
-    tx.expense.findMany({
-      where: {
-        organizationId: orgId,
-        date: { gte: from, lte: to },
-        ...(centerIds.length ? { centerId: { in: centerIds } } : {}),
-      },
-    }),
+  const [paymentRows, expenseRows] = await Promise.all([
+    centerIds.length
+      ? tx.select({ payment: payments }).from(payments)
+          .innerJoin(students, eq(students.id, payments.studentId))
+          .innerJoin(classGroups, eq(classGroups.id, students.classId))
+          .where(and(
+            eq(payments.organizationId, orgId),
+            gte(payments.date, from),
+            lte(payments.date, to),
+            inArray(classGroups.centerId, centerIds),
+          )).then((rows) => rows.map((row) => row.payment))
+      : tx.select().from(payments).where(and(eq(payments.organizationId, orgId), gte(payments.date, from), lte(payments.date, to))),
+    tx.select().from(expenses).where(and(
+      eq(expenses.organizationId, orgId),
+      gte(expenses.date, from),
+      lte(expenses.date, to),
+      ...(centerIds.length ? [inArray(expenses.centerId, centerIds)] : []),
+    )),
   ]);
 
   const months: { key: string; label: string }[] = [];
@@ -115,11 +135,10 @@ export async function getFinanceSeries(tx: TenantClient, orgId: string, range: D
     months.push({ key: monthKey(cursor), label: monthLabel(cursor) });
     cursor.setMonth(cursor.getMonth() + 1);
   }
-
   return months.map(({ key, label }) => ({
     month: key,
     label,
-    revenue: payments.filter((p) => monthKey(p.date) === key).reduce((s, p) => s + p.amount, 0),
-    expenses: expenses.filter((e) => monthKey(e.date) === key).reduce((s, e) => s + e.amount, 0),
+    revenue: paymentRows.filter((p) => monthKey(p.date) === key).reduce((sum, p) => sum + p.amount, 0),
+    expenses: expenseRows.filter((e) => monthKey(e.date) === key).reduce((sum, e) => sum + e.amount, 0),
   }));
 }

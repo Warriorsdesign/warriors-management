@@ -128,7 +128,7 @@ function AdminLoginForm() {
             href="/login"
             className="text-xs text-muted-foreground hover:text-primary transition-colors"
           >
-            ← Retour à l'espace de connexion des centres
+            ← Retour à l&apos;espace de connexion des centres
           </a>
         </div>
       </Card>
